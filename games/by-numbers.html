@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Game</title>
+  <style>
+    @import url('../assets/fonts/fonts.css');
+    :root {
+      --game-max-width: min(92vw, 760px);
+      --green-dark: var(--surface, #111827);
+      --green-mid: var(--accent-2, #3b82f6);
+      --green-light: var(--muted, #9bb8d4);
+      --green-pale: var(--surface-2, #1e2d45);
+      --yellow:      #ffd166;
+      --orange:      #f4845f;
+      --red:         #ef233c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito', sans-serif; background: var(--bg, #0a0e1a); min-height: 100vh; overflow-x: hidden; color: #222; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: var(--stripe-texture); pointer-events: none; z-index: 0; }
+    .screen { display: none; position: relative; z-index: 1; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    /* LAUNCHER BAR */
+    #launcher-bar { display: flex; background: rgba(0,0,0,0.4); padding: 9px 13px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; position: sticky; top: 0; z-index: 20; width: 100%; }
+    .lb-left { display: flex; align-items: center; gap: 8px; }
+    .lb-av { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-2, #3b82f6); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0; }
+    .lb-name { font-size: 15px; font-weight: 700; color: #fff; }
+    .lb-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.8); font-size: 15px; font-weight: 700; padding: 5px 11px; border-radius: 10px; cursor: pointer; font-family: 'Nunito', sans-serif; white-space: nowrap; transition: background .15s; }
+    .lb-btn:hover { background: rgba(255,255,255,0.2); }
+    /* LEVEL SELECT */
+    #screen-levels { padding: 2rem 1rem; gap: 1.2rem; }
+    .level-header { text-align: center; }
+    .game-name-tag { display: inline-block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--green-light); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 3px 14px; margin-bottom: 6px; }
+    .level-header h2 { font-family: 'Fredoka One', cursive; font-size: 2.2rem; color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,0.3); }
+    .level-header p { color: var(--green-light); font-weight: 600; font-size: 0.95rem; margin-top: 4px; }
+    .level-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; max-width: var(--game-max-width); }
+    .level-btn { aspect-ratio: 1; border-radius: 16px; border: none; cursor: pointer; font-family: 'Fredoka One', cursive; transition: transform .15s, box-shadow .15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; position: relative; overflow: hidden; }
+    .level-btn .lvl-num   { font-size: 2.2rem; line-height: 1; }
+    .level-btn .lvl-name  { font-size: 0.78rem; font-family: 'Nunito', sans-serif; font-weight: 700; opacity: .8; }
+    .level-btn .lvl-stars { font-size: 0.75rem; letter-spacing: 1px; min-height: 14px; }
+    .level-btn.unlocked   { background: var(--yellow); color: var(--green-dark); box-shadow: 0 4px 0 rgba(0,0,0,0.2); }
+    .level-btn.unlocked:hover  { transform: translateY(-3px); box-shadow: 0 7px 0 rgba(0,0,0,0.2); }
+    .level-btn.unlocked:active { transform: translateY(1px); }
+    .level-btn.completed  { background: var(--green-mid); color: #fff; box-shadow: 0 4px 0 var(--green-dark); }
+    .level-btn.completed:hover { transform: translateY(-3px); }
+    .level-btn.locked     { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; box-shadow: none; }
+    .level-btn.locked .lvl-num { opacity: .4; }
+    .lock-icon { font-size: 1.4rem; }
+    .level-actions { display: flex; gap: 10px; width: 100%; max-width: var(--game-max-width); flex-wrap: wrap; justify-content: center; }
+    .btn-sm { padding: 9px 22px; border-radius: 50px; border: none; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: background .2s; }
+    .btn-reset { background: var(--orange); color: #fff; }
+    .btn-reset:hover { background: #e06040; }
+    /* GAME SCREEN */
+    #screen-game { padding: 0; background: var(--bg, #1a2e1c); align-items: center; justify-content: flex-start; min-height: 100vh; }
+    #game-hud { width: 100%; max-width: var(--game-max-width); display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 10px 90px; background: rgba(0,0,0,0.3); border-bottom: 2px solid rgba(255,255,255,0.1); position: relative; flex-shrink: 0; }
+    #hud-back-btn { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: rgba(255,255,255,0.85); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.78rem; padding: 5px 10px; border-radius: 10px; cursor: pointer; white-space: nowrap; transition: background .15s; z-index: 5; }
+    #hud-back-btn:hover { background: rgba(255,255,255,0.22); }
+    .hud-item  { display: flex; flex-direction: column; align-items: center; }
+    .hud-label { font-size: 0.7rem; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; }
+    .hud-value { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: #fff; }
+    .hud-prog-track { width: 70px; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden; margin-top: 2px; }
+    .hud-prog-fill  { height: 100%; background: linear-gradient(90deg, var(--green-mid), var(--yellow)); border-radius: 4px; transition: width .3s ease; width: 0%; }
+    #canvas-wrap { width: 100%; max-width: var(--game-max-width); padding: 8px 10px 4px; flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+    #paint-canvas { display: block; border-radius: 12px; cursor: crosshair; box-shadow: 0 8px 32px rgba(0,0,0,0.45); touch-action: none; user-select: none; max-width: 100%; max-height: 100%; }
+    #palette-panel { width: 100%; max-width: var(--game-max-width); background: rgba(0,0,0,0.3); border-top: 2px solid rgba(255,255,255,0.1); padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+    .palette-label { font-size: 0.62rem; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1.2px; }
+    #color-palette { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .color-swatch { width: 42px; height: 42px; border-radius: 50%; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Fredoka One', cursive; font-size: .95rem; border: 3px solid transparent; transition: transform .14s, border-color .14s, box-shadow .14s; box-shadow: 0 3px 8px rgba(0,0,0,0.3); flex-shrink: 0; }
+    .color-swatch .swatch-num  { line-height: 1; }
+    .color-swatch .swatch-name { font-size: .42rem; font-family: 'Nunito', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; opacity: .65; }
+    .color-swatch:hover { transform: scale(1.1); }
+    .color-swatch.selected { border-color: #fff; transform: scale(1.18); box-shadow: 0 0 0 3px rgba(255,255,255,.35), 0 5px 14px rgba(0,0,0,.45); }
+    .hud-hint-btn { padding: 5px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.85); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.78rem; cursor: pointer; white-space: nowrap; transition: background .15s; }
+    .hud-hint-btn:hover { background: rgba(255,255,255,0.22); }
+    /* OVERLAY */
+    .overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; padding: 1rem; }
+    .overlay.active { display: flex; }
+    .overlay-card { background: #fff; border-radius: 24px; padding: 2rem; width: 100%; max-width: 420px; text-align: center; box-shadow: 0 16px 64px rgba(0,0,0,0.35); animation: popIn .3s cubic-bezier(.175,.885,.32,1.275); }
+    @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .overlay-panda  { font-size: 3.5rem; margin-bottom: .5rem; }
+    .overlay-title  { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--green-dark); margin-bottom: .3rem; }
+    .overlay-sub    { font-size: .95rem; color: #666; margin-bottom: 1.2rem; line-height: 1.5; }
+    .stars-display  { font-size: 2rem; margin-bottom: 1rem; letter-spacing: 4px; }
+    .overlay-stats  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 1.4rem; }
+    .stat-box       { background: var(--green-pale); border-radius: 12px; padding: 10px; }
+    .stat-box .s-label { font-size: .72rem; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-box .s-val   { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: var(--green-dark); }
+    .overlay-btns { display: flex; flex-direction: column; gap: 8px; }
+    .btn-next  { background: var(--yellow); color: var(--green-dark); font-family: 'Fredoka One', cursive; font-size: 1.2rem; padding: 12px; border-radius: 14px; border: none; cursor: pointer; transition: background .2s; }
+    .btn-next:hover  { background: #f0c030; }
+    .btn-retry { background: var(--green-pale); color: var(--green-dark); font-family: 'Nunito', sans-serif; font-weight: 700; font-size: .95rem; padding: 10px; border-radius: 14px; border: none; cursor: pointer; transition: background .2s; }
+    .btn-retry:hover { background: var(--green-light); }
+    .btn-menu  { background: #f0f0f0; color: #888; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: .9rem; padding: 9px; border-radius: 14px; border: none; cursor: pointer; transition: background .2s; }
+    .btn-menu:hover  { background: #e0e0e0; }
+    .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 10px 24px; border-radius: 50px; font-weight: 700; font-size: .9rem; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .confetti-piece { position: fixed; border-radius: 2px; animation: confettiFall linear forwards; pointer-events: none; z-index: 200; }
+    @keyframes confettiFall { 0% { transform: translateY(-30px) rotate(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotate(720deg); opacity: 0; } }
+  </style>
+  <!-- ── THEME SYSTEM ── -->
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  /* ── THEME SHORTCUTS ── all game scripts below use these globals:
+     window.__T  = activeTheme object
+     window.__TI = icons   { player, collect, enemy, life, hole }
+     window.__TC = canvas  { bgFill, collectFill, enemyFill, ... }
+     window.__TS = strings { retryBtn, winBtn, resultsBtn, clueTemplate, ... }
+  */
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+
+<div id="launcher-bar">
+  <div class="lb-left">
+    <div class="lb-av" id="lb-av">P</div>
+    <div class="lb-name" id="lb-name">Player</div>
+  </div>
+  <button class="lb-btn" onclick="goToLauncher()">🏠 Launcher</button>
+</div>
+
+<!-- LEVEL SELECT -->
+<div id="screen-levels" class="screen active">
+  <div class="level-header">
+    <div class="game-name-tag" id="level-game-tag">Blueprint Paint</div>
+    <h2>Choose a Painting</h2>
+    <p>Fill every cell correctly to reveal the masterpiece! 🎨</p>
+  </div>
+  <div class="level-grid" id="level-grid"></div>
+  <div class="level-actions">
+    <button class="btn-sm btn-reset" onclick="confirmReset()">🔄 Reset Progress</button>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game" class="screen">
+  <div id="game-hud" style="position:relative;">
+    <button id="hud-back-btn" onclick="backToLevels()">← Levels</button>
+    <div class="hud-item">
+      <span class="hud-label">Painting</span>
+      <span class="hud-value" id="hud-level">1</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Progress</span>
+      <div class="hud-prog-track"><div class="hud-prog-fill" id="prog-fill"></div></div>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Done</span>
+      <span class="hud-value" id="hud-pct">0%</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Hints</span>
+      <span class="hud-value" id="hud-hints">0</span>
+    </div>
+    <button class="hud-hint-btn" onclick="doHint()">💡 Hint</button>
+    <button class="hud-hint-btn" onclick="doUndo()">↩ Undo</button>
+  </div>
+  <div id="canvas-wrap"><canvas id="paint-canvas"></canvas></div>
+  <div id="palette-panel">
+    <div class="palette-label">Pick a colour — click &amp; drag to paint</div>
+    <div id="color-palette"></div>
+  </div>
+</div>
+
+<!-- COMPLETE OVERLAY -->
+<div id="overlay-complete" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-panda" id="ov-panda">🎮</div>
+    <div class="overlay-title" id="ov-title">Mission Painted!</div>
+    <div class="stars-display" id="ov-stars">★★★</div>
+    <div class="overlay-sub"   id="ov-sub">Amazing job! 🎨</div>
+    <div class="overlay-stats">
+      <div class="stat-box"><div class="s-label">Accuracy</div><div class="s-val" id="ov-accuracy">100%</div></div>
+      <div class="stat-box"><div class="s-label">Time</div><div class="s-val" id="ov-time">0:00</div></div>
+      <div class="stat-box"><div class="s-label">Hints</div><div class="s-val" id="ov-hints-used">0</div></div>
+    </div>
+    <div class="overlay-btns">
+      <button class="btn-next"  id="ov-btn-next">Next Painting →</button>
+      <button class="btn-retry" onclick="retryLevel()">Paint Again 🎨</button>
+      <button class="btn-menu"  onclick="closeOverlays(); showScreen('screen-levels')">📋 Level Select</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM OVERLAY -->
+<div id="overlay-confirm" class="overlay">
+  <div class="overlay-card" style="max-width:340px;padding:1.8rem;">
+    <div class="overlay-title" id="confirm-title" style="font-size:1.4rem;color:var(--text);margin-bottom:.5rem;">Are you sure?</div>
+    <div class="overlay-sub"   id="confirm-text">This cannot be undone.</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-menu"  style="flex:1;" onclick="closeOverlays()">Cancel</button>
+      <button class="btn-next"  style="flex:1;background:var(--red);color:#fff;" id="confirm-yes-btn">Yes, reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const _p = new URLSearchParams(window.location.search);
+const launcherPlayer = _p.get('player');
+const launcherDay = _p.get('day');
+
+const COLORS = {
+  1:{hex:'#0d1b35',name:'Void'}, 2:{hex:'#e8f4ff',name:'Steel'}, 3:{hex:'#1e3a8a',name:'Navy'},
+  4:{hex:'#FFB7C5',name:'Blush'}, 5:{hex:'#C8C8C8',name:'Pearl'}, 6:{hex:'#A8D87A',name:'Leaf'},
+  7:{hex:'#4A7C44',name:'Moss'}, 8:{hex:'#87CEEB',name:'Sky'}, 9:{hex:'#FFD166',name:'Sun'},
+};
+
+const PIXEL_ART_1 = [
+  [8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,8,3,3,8,8,8,8,8,3,3,8,8,8,8],
+  [8,8,3,3,3,3,8,8,8,3,3,3,3,8,8,8],[8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8],
+  [8,8,8,2,2,2,2,2,2,2,2,2,2,8,8,8],[8,8,2,2,2,2,2,2,2,2,2,2,2,2,8,8],
+  [8,2,2,2,3,3,2,2,2,2,3,3,2,2,2,8],[8,2,2,2,3,3,2,4,2,4,2,3,3,2,2,8],  // was wrong, fixed
+  [8,2,2,2,3,3,2,2,2,2,2,3,3,2,2,8],[8,2,2,2,2,2,2,3,3,3,2,2,2,2,2,8],
+  [8,2,2,2,2,4,2,2,2,2,4,2,2,2,2,8],[8,2,2,2,2,2,3,2,2,3,2,2,2,2,2,8],
+  [8,8,2,2,2,2,2,3,3,2,2,2,2,2,8,8],[8,8,8,2,2,2,2,2,2,2,2,2,8,8,8,8],
+  [6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6],[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+];
+
+const PIXEL_ART_2 = [
+  [8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8],[8,8,7,8,8,8,7,8,8,7,8,8,8,7,8,8],
+  [8,8,6,8,8,8,6,8,8,6,8,8,8,6,8,8],[8,8,6,8,8,8,6,8,8,6,8,8,8,6,8,8],
+  [8,8,6,8,2,2,6,2,2,6,2,2,8,6,8,8],[8,8,6,2,2,2,6,2,2,6,2,2,2,6,8,8],
+  [8,8,6,2,3,3,2,2,2,2,3,3,2,6,8,8],[8,8,6,2,3,3,2,4,2,4,3,3,2,6,8,8],
+  [8,8,6,2,2,2,2,2,2,2,2,2,2,6,8,8],[8,8,6,2,2,2,2,3,3,2,2,2,2,6,8,8],
+  [8,8,6,2,2,4,2,2,2,4,2,2,2,6,8,8],[8,8,6,2,2,2,2,3,3,2,2,2,2,6,8,8],
+  [8,8,6,5,5,5,5,5,5,5,5,5,5,6,8,8],[8,8,6,6,6,6,6,6,6,6,6,6,6,6,8,8],
+  [6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6],[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+];
+
+const PIXEL_ART_3 = [
+  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3],[3,3,3,3,9,9,9,3,3,3,3,3,3,3,3,3],
+  [3,3,3,9,9,9,9,9,3,3,3,3,3,3,3,3],[3,3,3,9,9,9,9,9,3,3,3,3,3,3,3,3],
+  [3,3,3,3,9,9,9,3,3,2,2,2,2,3,3,3],[3,3,3,3,3,3,3,3,2,2,2,2,2,2,3,3],
+  [3,3,3,3,3,3,3,2,2,3,3,2,2,2,2,3],[3,3,3,3,3,3,3,2,2,3,3,2,3,2,2,3],
+  [3,3,3,3,3,3,3,2,2,2,2,2,2,2,2,3],[3,3,3,3,3,3,3,2,2,2,3,3,2,2,2,3],
+  [3,3,3,3,3,3,3,2,4,2,2,2,4,2,2,3],[3,3,3,3,3,3,3,2,2,3,2,3,2,2,2,3],
+  [3,3,3,3,3,3,3,3,2,2,3,3,2,2,3,3],[3,3,3,3,3,3,3,3,3,2,2,2,2,3,3,3],
+  [3,7,7,3,6,3,3,7,7,3,3,6,3,3,7,3],[7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7],
+];
+
+const LEVELS = (function(){
+  const t = window.__activeTheme || {};
+  const Th = window.PandaAdventure && window.PandaAdventure.Theme;
+  const mascot = t.mascot || '🤖';
+  const getT = (day, def) => (Th ? Th.getGameTitle(t, day, def) : def);
+  
+  return [
+    {num:1, name: getT('day7', 'Blueprint 1'), emoji: mascot, answer:PIXEL_ART_1},
+    {num:2, name: 'Blueprint 2', emoji: '🔷', answer:PIXEL_ART_2},
+    {num:3, name: 'Moon Night',  emoji: '🌙', answer:PIXEL_ART_3},
+  ];
+})();
+
+const STORAGE_KEY = 'birthday_numbers_v1';
+const OLD_KEY = 'pandanumbers_v1';
+const appData = (function(){
+  try {
+    let old = localStorage.getItem(OLD_KEY);
+    let current = localStorage.getItem(STORAGE_KEY);
+    if (old && !current) {
+      localStorage.setItem(STORAGE_KEY, old);
+      current = old;
+    }
+    return JSON.parse(current) || {};
+  } catch(e) { return {}; }
+})();
+if (!appData.maxLevel) appData.maxLevel = 1;
+if (!appData.stars)    appData.stars    = {};
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-levels') renderLevels();
+}
+function closeOverlays() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('active')); }
+function goToLauncher() {
+  const fromGames = window.location.pathname.includes('/games/');
+  window.top.location.href = '../launcher/index.html';
+}
+
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+
+function writeLauncherProgress(stars) {
+  if (!launcherPlayer || !launcherDay) return;
+  try {
+    const key = 'birthday_adventure_players_v1';
+    const players = JSON.parse(localStorage.getItem(key) || '[]');
+    let p = players.find(x => x.name === launcherPlayer);
+    if (!p) { p = { name: launcherPlayer, stars: 0, streak: 0 }; players.push(p); }
+    // Update aggregate stats if needed
+    localStorage.setItem(key, JSON.stringify(players));
+  } catch (e) {}
+}
+
+function renderLevels() {
+  const grid = document.getElementById('level-grid'); grid.innerHTML = '';
+  const max  = appData.maxLevel || 1;
+  LEVELS.forEach(cfg => {
+    const btn      = document.createElement('button');
+    const stars    = appData.stars[cfg.num] || 0;
+    const done     = stars > 0 || cfg.num < max;
+    const unlocked = cfg.num <= max;
+    btn.className  = 'level-btn ' + (done ? 'completed' : unlocked ? 'unlocked' : 'locked');
+    if (unlocked) {
+      const starStr = stars > 0 ? '★'.repeat(stars)+'☆'.repeat(3-stars) : '☆☆☆';
+      btn.innerHTML = `<span class="lvl-num">${cfg.emoji}</span><span class="lvl-name">${cfg.name}</span><span class="lvl-stars">${starStr}</span>`;
+      btn.onclick = () => startLevel(cfg.num);
+    } else {
+      btn.innerHTML = `<span class="lock-icon">🔒</span><span class="lvl-name">${cfg.name}</span>`;
+    }
+    grid.appendChild(btn);
+  });
+}
+
+function confirmReset() {
+  document.getElementById('confirm-title').textContent = 'Reset Progress?';
+  document.getElementById('confirm-text').textContent  = 'All paintings will be locked again.';
+  document.getElementById('overlay-confirm').classList.add('active');
+  document.getElementById('confirm-yes-btn').onclick = () => {
+    appData.maxLevel=1; appData.stars={}; saveData(appData);
+    closeOverlays(); renderLevels(); showToast('Progress reset! Starting fresh ⚡');
+  };
+}
+
+let curNum=1,curCfg=null,painted=[],undoStack=[],selColor=1,isDown=false;
+let hintActive=false,hintTimer=null,hintsUsed=0,startTime=null,cellPx=24,completed=false,running=false;
+const ROWS=16,COLS=16,TOTAL=256;
+const canvas=document.getElementById('paint-canvas'),ctx=canvas.getContext('2d');
+
+function startLevel(num) {
+  curNum=num; curCfg=LEVELS[num-1]; selColor=1;
+  painted=Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+  undoStack=[]; hintsUsed=0; completed=false; running=true; hintActive=false; startTime=Date.now();
+  setupCanvas(); buildPalette();
+  document.getElementById('hud-level').textContent=num;
+  showScreen('screen-game'); drawAll(false); updateHUD();
+}
+function retryLevel() { closeOverlays(); startLevel(curNum); }
+
+function setupCanvas() {
+  const canvasWrap=document.getElementById('canvas-wrap');
+  const hudH=document.getElementById('game-hud').offsetHeight;
+  const paletteH=document.getElementById('palette-panel').offsetHeight;
+  const wrapPadY=12;
+  const maxW=Math.min(window.innerWidth-24,520)-20;
+  const maxH=Math.max(220,window.innerHeight-hudH-paletteH-wrapPadY);
+  const byWidth=Math.floor(maxW/COLS);
+  const byHeight=Math.floor(maxH/ROWS);
+  cellPx=Math.max(11,Math.min(byWidth,byHeight));
+  canvas.width=cellPx*COLS;
+  canvas.height=cellPx*ROWS;
+  canvasWrap.style.minHeight=`${canvas.height}px`;
+}
+
+function buildPalette() {
+  const el=document.getElementById('color-palette'); el.innerHTML='';
+  Object.entries(COLORS).forEach(([num,{hex,name}])=>{
+    const n=parseInt(num),div=document.createElement('div');
+    div.className='color-swatch'+(n===selColor?' selected':'');
+    div.style.background=hex;
+    div.style.color=(n===3||n===7)?'rgba(255,255,255,.85)':'rgba(0,0,0,.55)';
+    div.innerHTML=`<span class="swatch-num">${num}</span><span class="swatch-name">${name}</span>`;
+    div.dataset.color=n;
+    div.addEventListener('click',()=>pickColor(n));
+    el.appendChild(div);
+  });
+}
+function pickColor(n) {
+  selColor=n;
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.toggle('selected',parseInt(s.dataset.color)===n));
+}
+
+function drawCell(r,c,force=false) {
+  const x=c*cellPx,y=r*cellPx,ans=curCfg.answer[r][c],p=painted[r][c];
+  ctx.save();
+  if (force) { ctx.fillStyle=COLORS[ans].hex; ctx.globalAlpha=.88; ctx.fillRect(x,y,cellPx,cellPx); }
+  else if (p===0) {
+    ctx.fillStyle='#F2EEE7'; ctx.fillRect(x,y,cellPx,cellPx);
+    const fs=Math.max(7,Math.round(cellPx*.42));
+    ctx.font=`700 ${fs}px Nunito,sans-serif`; ctx.fillStyle='#B8AFA6';
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ans,x+cellPx/2,y+cellPx/2);
+  } else {
+    ctx.fillStyle=COLORS[p].hex; ctx.fillRect(x,y,cellPx,cellPx);
+    if (p!==ans) {
+      const fs=Math.max(6,Math.round(cellPx*.36));
+      ctx.font=`700 ${fs}px Nunito,sans-serif`; ctx.fillStyle='rgba(80,50,50,.4)';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(ans,x+cellPx/2,y+cellPx/2);
+    }
+  }
+  ctx.globalAlpha=1; ctx.strokeStyle='rgba(100,90,80,.1)'; ctx.lineWidth=.5;
+  ctx.strokeRect(x+.25,y+.25,cellPx-.5,cellPx-.5); ctx.restore();
+}
+function drawAll(hint=false) { ctx.clearRect(0,0,canvas.width,canvas.height); for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) drawCell(r,c,hint); }
+
+function countCorrect() { let n=0; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(painted[r][c]===curCfg.answer[r][c]) n++; return n; }
+function updateHUD() {
+  const pct=Math.round((countCorrect()/TOTAL)*100);
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('hud-pct').textContent=pct+'%';
+  document.getElementById('hud-hints').textContent=hintsUsed;
+  return pct;
+}
+
+function cellAt(e) {
+  const rect=canvas.getBoundingClientRect(),sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+  let cx,cy;
+  if(e.touches){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}else{cx=e.clientX;cy=e.clientY;}
+  const c=Math.floor((cx-rect.left)*sx/cellPx),r=Math.floor((cy-rect.top)*sy/cellPx);
+  if(r>=0&&r<ROWS&&c>=0&&c<COLS) return{r,c}; return null;
+}
+function applyPaint(r,c) {
+  if(completed||!running) return;
+  if(painted[r][c]===selColor) return;
+  undoStack.push({r,c,prev:painted[r][c]}); if(undoStack.length>500) undoStack.shift();
+  painted[r][c]=selColor; drawCell(r,c);
+  const pct=updateHUD(); if(pct===100&&!completed){completed=true;setTimeout(showComplete,600);}
+}
+
+canvas.addEventListener('mousedown',e=>{isDown=true;const cell=cellAt(e);if(cell)applyPaint(cell.r,cell.c);});
+canvas.addEventListener('mousemove',e=>{if(!isDown)return;const cell=cellAt(e);if(cell)applyPaint(cell.r,cell.c);});
+canvas.addEventListener('mouseup',()=>{isDown=false;});
+canvas.addEventListener('mouseleave',()=>{isDown=false;});
+canvas.addEventListener('touchstart',e=>{e.preventDefault();isDown=true;const cell=cellAt(e);if(cell)applyPaint(cell.r,cell.c);},{passive:false});
+canvas.addEventListener('touchmove',e=>{e.preventDefault();const cell=cellAt(e);if(cell)applyPaint(cell.r,cell.c);},{passive:false});
+canvas.addEventListener('touchend',()=>{isDown=false;});
+
+function doHint() { if(hintActive||completed)return; hintActive=true; hintsUsed++; updateHUD(); drawAll(true); if(hintTimer)clearTimeout(hintTimer); hintTimer=setTimeout(()=>{hintActive=false;drawAll(false);},1500); }
+function doUndo()  { if(!undoStack.length||completed)return; const{r,c,prev}=undoStack.pop(); painted[r][c]=prev; drawCell(r,c); updateHUD(); }
+
+function backToLevels() { if(confirm('Back to level select? Progress will be lost.')){running=false;closeOverlays();showScreen('screen-levels');} }
+
+function showComplete() {
+  const elapsed=Math.floor((Date.now()-startTime)/1000),m=Math.floor(elapsed/60),s=elapsed%60;
+  const stars=hintsUsed===0?3:hintsUsed<=3?2:1;
+  const starStr='★'.repeat(stars)+'☆'.repeat(3-stars);
+  const prevStars=appData.stars[curNum]||0;
+  if(stars>prevStars) appData.stars[curNum]=stars;
+  if(curNum>=appData.maxLevel) appData.maxLevel=Math.min(LEVELS.length+1,curNum+1);
+  saveData(appData);
+  writeLauncherProgress(stars);
+  const msgs = (window.__T && window.__T.paintMessages) ||
+               [‘’, ‘Good start! 🎨’, ‘You\’re very creative! ✨’, ‘A true masterpiece! 🏆’];
+  const _tbnt=window.__activeTheme||{}; document.getElementById('ov-panda').textContent=stars===3?'🏆':((_tbnt.icons&&_tbnt.icons.player)||'🎨');
+  document.getElementById('ov-title').textContent=curNum===LEVELS.length?'ALL Masterpieces Complete! 🏆':'Mission Painted!';
+  document.getElementById('ov-stars').textContent=starStr;
+  document.getElementById('ov-sub').textContent=msgs[stars] || 'Great job!';
+  document.getElementById('ov-accuracy').textContent='100%';
+  document.getElementById('ov-time').textContent=m+':'+String(s).padStart(2,'0');
+  document.getElementById('ov-hints-used').textContent=hintsUsed;
+  const nextBtn=document.getElementById('ov-btn-next');
+  if(curNum<LEVELS.length){nextBtn.textContent='Next Painting →';nextBtn.onclick=()=>{closeOverlays();startLevel(curNum+1);};}
+  else{nextBtn.textContent='📋 Level Select';nextBtn.onclick=()=>{closeOverlays();showScreen('screen-levels');};}
+  document.getElementById('overlay-complete').classList.add('active');
+  launchConfetti();
+}
+
+function launchConfetti() {
+  const cols=(window.__T&&window.__T.confettiColors)||['#f5c842','#3b82f6','#ef4444','#8ecae6','#a78bfa','#22d3ee','#f97316'];
+  const total=70, startedAt=performance.now(), stagger=35;
+  let spawned=0;
+  function spawnBatch(now) {
+    const due = Math.min(total, Math.floor((now - startedAt) / stagger) + 1);
+    while (spawned < due) {
+      const p=document.createElement('div');
+      p.className='confetti-piece';
+      const sz=7+Math.random()*9;
+      p.style.cssText=`left:${Math.random()*100}vw;top:-12px;width:${sz}px;height:${sz}px;background:${cols[Math.floor(Math.random()*cols.length)]};border-radius:${Math.random()>.5?'50%':'2px'};animation-duration:${1.6+Math.random()*2}s;`;
+      document.body.appendChild(p);
+      setTimeout(()=>p.remove(),3800);
+      spawned++;
+    }
+    if (spawned < total) requestAnimationFrame(spawnBatch);
+  }
+  requestAnimationFrame(spawnBatch);
+}
+
+let toastTimer;
+function showToast(msg) { const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2500); }
+
+let resizeTimer;
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(document.getElementById('screen-game').classList.contains('active')&&running){setupCanvas();drawAll(hintActive);}},150);});
+
+(() => {
+  const displayName = launcherPlayer || 'Player';
+  const av = document.getElementById('lb-av');
+  const nm = document.getElementById('lb-name');
+  if (av) av.textContent = displayName[0].toUpperCase();
+  if (nm) nm.textContent = displayName;
+})();
+
+renderLevels();
+</script>
+
+<script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    const gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    const tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag');
+    if (tag) tag.textContent = gameTitle;
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    window.writeLauncherProgress = function(starsEarned) {
+      if (!launcherPlayer || !launcherDay) return;
+      try {
+        const key = 'birthday_adventure_players_v1';
+        const players = JSON.parse(localStorage.getItem(key) || '[]');
+        let player = players.find(p => p.name === launcherPlayer);
+        if (!player) {
+          player = { name: launcherPlayer, stars: 0, streak: 0 };
+          players.push(player);
+        }
+        // Update aggregate stats if needed
+        // The original function had a comment here, but the new one doesn't explicitly update stars/streak.
+        // Assuming the intent is to just ensure the player exists in localStorage.
+        localStorage.setItem(key, JSON.stringify(players));
+      } catch (e) { }
+    };
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* dressup tap: hole cells default state */
+    document.querySelectorAll('.hole:not(.active)').forEach(function(el){
+      el.textContent = TI.hole || '⚙️';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+</script>
+
+</body>
+</html>
+```

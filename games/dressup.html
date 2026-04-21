@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tap Arcade</title>
+  <style>
+    @import url('../assets/fonts/fonts.css');
+    :root {
+      --game-max-width: min(92vw, 560px);
+      --green-dark: var(--surface, #111827);
+      --green-mid: var(--accent-2, #3b82f6);
+      --green-light: var(--muted, #9bb8d4);
+      --yellow: #ffd166;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(180deg, var(--bg, #0a0e1a) 0%, var(--surface-2, #1e2d45) 100%);
+      color: #fff;
+      min-height: 100vh;
+    }
+    .screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    #launcher-bar { display: flex; background: rgba(0,0,0,0.4); padding: 9px 13px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); width: 100%; }
+    .lb-left { display: flex; align-items: center; gap: 8px; }
+    .lb-av { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-2, #3b82f6); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+    .lb-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 10px; padding: 6px 12px; font-size: .8rem; cursor: pointer; }
+    #game-hud { width: 100%; max-width: var(--game-max-width); display:flex; justify-content: space-between; padding: 12px 14px; background: rgba(0,0,0,.28); border-bottom: 1px solid rgba(255,255,255,.15); }
+    .hud-item { text-align:center; min-width: 70px; }
+    .hud-label { font-size: .68rem; text-transform: uppercase; opacity: .7; font-weight: 700; }
+    .hud-value { font-family: 'Fredoka One', cursive; font-size: 1.45rem; }
+    .play-wrap { width: 100%; max-width: var(--game-max-width); padding: 16px 12px 24px; }
+    .title { text-align: center; margin-bottom: 12px; }
+    .title h1 { font-family: 'Fredoka One', cursive; font-size: clamp(1.4rem, 3.6vw, 2rem); }
+    .title p { color: var(--green-light); font-weight: 700; }
+    .grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 16px;
+      padding: 10px;
+    }
+    .hole {
+      aspect-ratio: 1;
+      border-radius: 14px;
+      border: none;
+      background: rgba(255,255,255,.08);
+      font-size: clamp(1.2rem, 2.5vw, 2rem);
+      cursor: pointer;
+      transition: transform .08s ease, background .15s;
+    }
+    .hole.active { background: rgba(82,183,136,.35); }
+    .hole:active { transform: scale(.96); }
+    .controls { display:flex; gap:10px; justify-content:center; margin-top: 14px; }
+    .btn { border: none; border-radius: 12px; padding: 10px 16px; font-weight: 800; cursor: pointer; }
+    .btn.primary { background: var(--accent,#f5c842); color: var(--bg,#0a0e1a); }
+    .btn.secondary { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.2); }
+  </style>
+  <!-- ── THEME SYSTEM ── -->
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  /* ── THEME SHORTCUTS ── all game scripts below use these globals:
+     window.__T  = activeTheme object
+     window.__TI = icons   { player, collect, enemy, life, hole }
+     window.__TC = canvas  { bgFill, collectFill, enemyFill, ... }
+     window.__TS = strings { retryBtn, winBtn, resultsBtn, clueTemplate, ... }
+  */
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+  <div class="screen">
+    <div id="launcher-bar">
+      <div class="lb-left"><div class="lb-av" id="lb-av">A</div><strong id="lb-name">Explorer</strong></div>
+      <button class="lb-btn" onclick="location.href='../launcher/index.html'">🏠 Launcher</button>
+    </div>
+
+    <div id="game-hud">
+      <div class="hud-item"><div class="hud-label">Score</div><div class="hud-value" id="score">0</div></div>
+      <div class="hud-item"><div class="hud-label">Target</div><div class="hud-value" id="target">20</div></div>
+      <div class="hud-item"><div class="hud-label">Lives</div><div class="hud-value" id="lives">❤️❤️❤️</div></div>
+      <div class="hud-item"><div class="hud-label">Time</div><div class="hud-value" id="time">45</div></div>
+    </div>
+
+    <div class="play-wrap">
+      <div class="title">
+        <h1 id="tap-title">Loading...</h1>
+        <p id="tap-sub">Tap items, dodge obstacles, beat the timer!</p>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="controls">
+        <button class="btn primary" id="startBtn">Start Round</button>
+        <button class="btn secondary" id="resetBtn">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const raw = localStorage.getItem('panda_adventure_state_v2');
+      let name = 'Explorer';
+      try { const parsed = JSON.parse(raw || '{}'); if (parsed.playerName) name = parsed.playerName; } catch (e) {}
+      document.getElementById('lb-name').textContent = name;
+      document.getElementById('lb-av').textContent = name.charAt(0).toUpperCase();
+
+      const grid = document.getElementById('grid');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const livesEl = document.getElementById('lives');
+      const targetEl = document.getElementById('target');
+      const startBtn = document.getElementById('startBtn');
+      const resetBtn = document.getElementById('resetBtn');
+
+      const cells = [];
+      const _tdu = window.__activeTheme || {};
+      const _tidu = _tdu.icons || {};
+      const emojis = [_tidu.collect || '🔋', _tidu.enemy || '🛡️', _tidu.collect || '🔋'];
+      let score = 0, lives = 3, time = 45;
+      let spawnTimer = null, gameTimer = null;
+      let active = -1, activeType = 'good';
+      const target = 20;
+      targetEl.textContent = target;
+
+      for (let i = 0; i < 16; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'hole';
+        btn.textContent = _tidu.hole || '⚙️';
+        btn.addEventListener('click', () => hit(i));
+        grid.appendChild(btn);
+        cells.push(btn);
+      }
+
+      function paint(){
+        scoreEl.textContent = score;
+        timeEl.textContent = time;
+        livesEl.textContent = (window.__TI&&window.__TI.life||'❤️').repeat(Math.max(0,lives));
+      }
+
+      function clearActive(){
+        if (active >= 0) {
+          cells[active].classList.remove('active');
+          cells[active].textContent = _tidu.hole || '⚙️';
+          active = -1;
+        }
+      }
+
+      function spawn(){
+        clearActive();
+        active = Math.floor(Math.random() * cells.length);
+        activeType = Math.random() < 0.2 ? 'bee' : 'good';
+        cells[active].classList.add('active');
+        cells[active].textContent = activeType === 'bee' ? emojis[1] : emojis[Math.random() < 0.5 ? 0 : 2];
+      }
+
+      function end(msg){
+        clearInterval(spawnTimer); clearInterval(gameTimer); spawnTimer = gameTimer = null;
+        clearActive();
+        alert(msg + `\nScore: ${score}`);
+      }
+
+      function hit(i){
+        if (i !== active || !spawnTimer) return;
+        if (activeType === 'bee') { lives--; score = Math.max(0, score - 1); }
+        else score++;
+        if (score >= target) return end('Mission complete! ' + (_tdu.strings && _tdu.strings.winMsg || 'You WIN! ⚡'));
+        if (lives <= 0) return end('Oops! Too many ' + (_tidu.enemy || '🛡️') + '. Try again!');
+        spawn(); paint();
+      }
+
+      function start(){
+        score = 0; lives = 3; time = 45; paint();
+        clearInterval(spawnTimer); clearInterval(gameTimer);
+        spawn();
+        spawnTimer = setInterval(spawn, 650);
+        gameTimer = setInterval(() => {
+          time--; paint();
+          if (time <= 0) {
+            const winMsg = (t.strings && t.strings.winMsg) || 'Mission Complete! 🎉';
+            end(score >= target ? winMsg : "Time's up! Try again!");
+          }
+        }, 1000);
+      }
+
+      startBtn.addEventListener('click', start);
+      resetBtn.addEventListener('click', () => { clearInterval(spawnTimer); clearInterval(gameTimer); score=0; lives=3; time=45; paint(); clearActive(); });
+      paint();
+    })();
+  </script>
+
+
+
+  <script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    const gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    const tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag');
+    if (tag) tag.textContent = gameTitle;
+    var tapTitle = document.getElementById('tap-title');
+    if (tapTitle) tapTitle.textContent = gameTitle;
+
+    var tapSub = document.getElementById('tap-sub');
+    if (tapSub) {
+      tapSub.textContent = "Tap " + (TI.collect || "items") + ", dodge " + (TI.enemy || "obstacles") + ", beat the timer!";
+    }
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    window.writeLauncherProgress = function(starsEarned) {
+      if (!launcherPlayer || !launcherDay) return;
+      try {
+        const key = 'birthday_adventure_players_v1';
+        const players = JSON.parse(localStorage.getItem(key) || '[]');
+        let player = players.find(p => p.name === launcherPlayer);
+        if (!player) {
+          player = { name: launcherPlayer, stars: 0, streak: 0 };
+          players.push(player);
+        }
+        localStorage.setItem(key, JSON.stringify(players));
+      } catch (e) { }
+    };
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* dressup tap: hole cells default state */
+    document.querySelectorAll('.hole:not(.active)').forEach(function(el){
+      el.textContent = TI.hole || '⚙️';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Birthday Game</title>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+
+<body>
+  <main id="game-root" class="pa-page">
+    <section class="pa-card">
+      <h1 id="game-main-title">Loading...</h1>
+      <p>Solve mini logic puzzles. Each answer reveals one letter.</p>
+      <div id="puzzleArea" class="pa-grid" style="margin-top: 10px;"></div>
+      <div class="pa-card" style="margin-top: 12px; background: var(--surface-2);">
+        <p>Revealed clue code:</p>
+        <h2 id="codeOutput">_ _ _ _ _ _ _ _</h2>
+      </div>
+      <p id="finalMessage"></p>
+    </section>
+  </main>
+
+  <script src="../engine/state-manager.js"></script>
+  <script src="../engine/game-bridge.js"></script>
+  <script src="shared/game-shell.js"></script>
+  <script>
+    var TI = window.__TI || {};
+    var puzzles = [
+      { q: (TI.player||"🐼") + " Pattern: 2, 4, 8, 16, ?", a: "32", letter: "B" },
+      { q: (TI.life||"⚡") + " If you have 5 items and 2 are used, how many remain?", a: "3", letter: "I" },
+      { q: (TI.collect||"🔋") + " What number is halfway between 10 and 30?", a: "20", letter: "R" },
+      { q: (TI.enemy||"🛡️") + " Odd one out: triangle, circle, square, red", a: "red", letter: "T" },
+      { q: "🚀 Pattern: 3, 6, 12, 24, ?", a: "48", letter: "H" },
+      { q: (TI.hole||"📡") + " If your guide has 4 friends with 3 items each, how many items total?", a: "12", letter: "D" },
+      { q: "💎 Decode: A=1 Z=26. What letter is 20?", a: "t", letter: "A" },
+      { q: "🔩 Decode the message: 1+1+1+1+1+1+1 = ? (base 2: 7 has how many ones?)", a: "3", letter: "Y" }
+    ];
+
+    var score = 0, level = 1, lives = 3, timer = 180;
+    var solved = {};
+
+    function completeGame(score, level) {
+      PandaAdventure.Bridge.sendComplete({
+        gameId: "day9",
+        score: score,
+        level: level
+      });
+    }
+
+    PandaAdventure.GameShell.mountTopBar({ rootId: "game-root" });
+    PandaAdventure.GameShell.setStats({ score: score, level: level, lives: lives, timer: timer });
+
+    function normalize(text) { return (text || "").toLowerCase().trim(); }
+
+    function drawPuzzles() {
+      var area = document.getElementById("puzzleArea");
+      area.innerHTML = "";
+      for (var i = 0; i < puzzles.length; i++) {
+        (function (idx) {
+          var card = document.createElement("div");
+          card.className = "pa-card";
+          card.innerHTML =
+            "<p><strong>Puzzle " + (idx + 1) + "</strong></p>" +
+            "<p>" + puzzles[idx].q + "</p>";
+
+          var input = document.createElement("input");
+          input.placeholder = "Your answer";
+          input.style.width = "100%";
+          input.style.padding = "8px";
+          input.style.marginTop = "6px";
+
+          var btn = document.createElement("button");
+          btn.className = "pa-btn pa-btn-primary";
+          btn.textContent = solved[idx] ? "Solved" : "Submit";
+          btn.disabled = !!solved[idx];
+          btn.style.marginTop = "8px";
+
+          btn.addEventListener("click", function () {
+            if (normalize(input.value) === normalize(puzzles[idx].a)) {
+              solved[idx] = true;
+              score += 10;
+              level = 1 + Object.keys(solved).length;
+              btn.textContent = "Solved";
+              btn.disabled = true;
+              refreshCode();
+              PandaAdventure.GameShell.setStats({ score: score, level: level, lives: lives });
+            } else {
+              lives -= 1;
+              PandaAdventure.GameShell.setStats({ lives: lives });
+              if (lives <= 0) {
+                document.getElementById("finalMessage").textContent = "Even experts need backup! Reload and try again. ⚙️";
+                disableAll();
+              }
+            }
+          });
+
+          card.appendChild(input);
+          card.appendChild(btn);
+          area.appendChild(card);
+        })(i);
+      }
+    }
+
+    function disableAll() {
+      var buttons = document.querySelectorAll("#puzzleArea button");
+      for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+    }
+
+    function refreshCode() {
+      var out = [];
+      for (var i = 0; i < puzzles.length; i++) {
+        out.push(solved[i] ? puzzles[i].letter : "_");
+      }
+      document.getElementById("codeOutput").textContent = out.join(" ");
+
+      if (Object.keys(solved).length === puzzles.length) {
+        var mascot = window.__T.mascot || "🤖";
+        document.getElementById("finalMessage").textContent = "Code cracked! The secret word is: BIRTHDAY! " + mascot + " 🎂🎁";
+        completeGame(score, level);
+      }
+    }
+
+    setInterval(function () {
+      timer -= 1;
+      PandaAdventure.GameShell.setStats({ timer: timer });
+      if (timer <= 0) {
+        document.getElementById("finalMessage").textContent = "Time ended. The challenge was quick — refresh and try again! ⚡";
+        disableAll();
+      }
+    }, 1000);
+
+    drawPuzzles();
+  </script>
+
+  <script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    const gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    const tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag') || document.getElementById('game-main-title');
+    if (tag) tag.textContent = gameTitle;
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+  </script>
+
+</body>
+
+</html>

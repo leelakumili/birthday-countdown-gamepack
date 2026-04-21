@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Theme Tests — Birthday Countdown Game Pack</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0d0d0d; color: #e0e0e0; padding: 24px; line-height: 1.6; }
+    h1 { color: #ff69b4; font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 28px; }
+    h2 { color: #88aaff; font-size: 1rem; margin: 28px 0 8px; border-bottom: 1px solid #222; padding-bottom: 4px; }
+    .result { padding: 3px 0; font-size: 0.9rem; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; font-weight: bold; }
+    .fail-detail { color: #f44336; font-size: 0.8rem; padding-left: 20px; opacity: 0.85; margin-bottom: 4px; }
+    .summary { margin-top: 32px; padding: 14px 18px; border-radius: 8px; font-size: 1rem; font-weight: bold; }
+    .summary.ok  { background: #0f2e0f; color: #4caf50; border: 1px solid #2a5a2a; }
+    .summary.err { background: #2e0f0f; color: #f44336; border: 1px solid #5a2a2a; }
+    .note { margin-top: 16px; color: #666; font-size: 0.8rem; }
+    .back { margin-bottom: 20px; }
+    .back a { color: #88aaff; }
+  </style>
+</head>
+<body>
+  <h1>Theme Tests — Birthday Countdown Game Pack</h1>
+  <p class="subtitle">Validates all 10 themes in engine/theme-manager.js · Run via local server</p>
+  <p class="back"><a href="run-tests.html">← State &amp; Unlock tests</a></p>
+  <div id="output"></div>
+
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+
+  <script>
+    // ── Minimal test framework ────────────────────────────────────────────────
+
+    var _results = [];
+    var _suite   = "";
+
+    function suite(name) { _suite = name; }
+
+    function assert(cond, msg) {
+      if (!cond) throw new Error(msg || "assertion failed");
+    }
+
+    function t(name, fn) {
+      try {
+        fn();
+        _results.push({ suite: _suite, name: name, ok: true });
+      } catch (e) {
+        _results.push({ suite: _suite, name: name, ok: false, err: e.message });
+      }
+    }
+
+    // ── Theme contract constants ───────────────────────────────────────────────
+
+    var THEME_NAMES = [
+      'transformer','panda','penguin','brainrot',
+      'pirate','dino','minecraft','pokemon','unicorn','space'
+    ];
+
+    var DAY_IDS = ['day1','day2','day3','day4','day5','day6','day7','day8','day9','day10'];
+
+    var REQUIRED_COLORS = [
+      'bg', 'surface', 'surface-2', 'text', 'muted',
+      'accent', 'accent-dark', 'accent-2', 'danger',
+      'green-dark', 'green-mid', 'green-bright', 'green-light', 'green-pale',
+      'yellow', 'yellow-dark', 'card-past', 'card-today', 'stripe-color'
+    ];
+
+    var REQUIRED_CANVAS = [
+      'bgFill', 'bgStripe', 'bgGround', 'bgGroundDark', 'bgCloud',
+      'collectFill', 'collectDark', 'collectAccent',
+      'enemyFill', 'enemyStripe', 'enemyWing',
+      'playerBody', 'playerLight', 'playerDark', 'playerAccent'
+    ];
+
+    var REQUIRED_ICONS = ['player', 'collect', 'enemy', 'life', 'hole'];
+
+    // Core strings every theme must define
+    var REQUIRED_STRINGS = [
+      'appTitle', 'playBtn', 'mascotSays', 'howToFallback',
+      'completionPrefix', 'completionSuffix', 'winBtn', 'retryBtn',
+      'resultsBtn', 'bgTexture'
+    ];
+
+    var REQUIRED_QUEST = [
+      'stage1Title', 'stage1PathA', 'stage1PathB', 'stage1Trap',
+      'stage2Title', 'stage3Title', 'stage3BtnText', 'finishText'
+    ];
+
+    var VALID_TEXTURES = ['bamboo', 'circuit', 'ice', 'wave'];
+    var VALID_MEMORY_TYPES = ['memory', 'pattern', 'speed'];
+
+    // Resolve all themes once (no config overrides)
+    var ALL_THEMES = App.Theme.resolveThemes({});
+
+    // ── Helper functions ──────────────────────────────────────────────────────
+
+    function isNonEmptyString(v) {
+      return typeof v === 'string' && v.trim().length > 0;
+    }
+
+    function isHexColor(v) {
+      return typeof v === 'string' &&
+             (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v) ||
+              v.startsWith('rgba(') || v.startsWith('rgb('));
+    }
+
+    function isFiveLetterWord(w) {
+      return typeof w === 'string' && /^[A-Z]{5}$/.test(w);
+    }
+
+    // ── Per-theme tests (run for all 10 themes) ───────────────────────────────
+
+    THEME_NAMES.forEach(function (themeName) {
+      var displayName = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+      var th = ALL_THEMES[themeName];
+
+      suite(displayName + " Theme");
+
+      // ── Existence ────────────────────────────────────────────────────────
+
+      t("exists in themes registry", function () {
+        assert(th && typeof th === 'object', themeName + " not found in resolveThemes()");
+      });
+
+      t("has non-empty name and mascot", function () {
+        assert(isNonEmptyString(th.name),   "name is empty");
+        assert(isNonEmptyString(th.mascot), "mascot is empty");
+      });
+
+      // ── Colors ───────────────────────────────────────────────────────────
+
+      t("has all " + REQUIRED_COLORS.length + " required CSS color tokens", function () {
+        var missing = [];
+        REQUIRED_COLORS.forEach(function (key) {
+          if (!th.colors || !isNonEmptyString(th.colors[key])) missing.push(key);
+        });
+        assert(missing.length === 0, "missing color tokens: " + missing.join(', '));
+      });
+
+      t("color token values are valid CSS colors", function () {
+        var bad = [];
+        REQUIRED_COLORS.forEach(function (key) {
+          var v = th.colors && th.colors[key];
+          if (v && !isHexColor(v)) bad.push(key + "=" + v);
+        });
+        assert(bad.length === 0, "non-CSS color values: " + bad.join('; '));
+      });
+
+      // ── Canvas ───────────────────────────────────────────────────────────
+
+      t("has all " + REQUIRED_CANVAS.length + " required canvas color keys", function () {
+        var missing = [];
+        REQUIRED_CANVAS.forEach(function (key) {
+          if (!th.canvas || !isNonEmptyString(th.canvas[key])) missing.push(key);
+        });
+        assert(missing.length === 0, "missing canvas keys: " + missing.join(', '));
+      });
+
+      // ── Icons ────────────────────────────────────────────────────────────
+
+      t("has all 5 icon keys (player, collect, enemy, life, hole) with values", function () {
+        var missing = [];
+        REQUIRED_ICONS.forEach(function (key) {
+          if (!th.icons || !isNonEmptyString(th.icons[key])) missing.push(key);
+        });
+        assert(missing.length === 0, "missing icon keys: " + missing.join(', '));
+      });
+
+      // ── Strings ──────────────────────────────────────────────────────────
+
+      t("has all " + REQUIRED_STRINGS.length + " required string keys with non-empty values", function () {
+        var missing = [];
+        REQUIRED_STRINGS.forEach(function (key) {
+          if (!th.strings || !isNonEmptyString(th.strings[key])) missing.push(key);
+        });
+        assert(missing.length === 0, "missing strings: " + missing.join(', '));
+      });
+
+      t("bgTexture references a known texture name", function () {
+        var tex = th.strings && th.strings.bgTexture;
+        assert(VALID_TEXTURES.indexOf(tex) !== -1,
+               "bgTexture '" + tex + "' not in [" + VALID_TEXTURES.join(', ') + "]");
+      });
+
+      // ── Games (all 10 days) ───────────────────────────────────────────────
+
+      t("has a non-empty themed title for all 10 days", function () {
+        var bad = [];
+        DAY_IDS.forEach(function (id) {
+          var entry = th.games && th.games[id];
+          if (!entry || !isNonEmptyString(entry.title)) bad.push(id);
+        });
+        assert(bad.length === 0, "missing titles for days: " + bad.join(', '));
+      });
+
+      t("has a non-empty clue for all 10 days", function () {
+        var bad = [];
+        DAY_IDS.forEach(function (id) {
+          var entry = th.games && th.games[id];
+          if (!entry || !isNonEmptyString(entry.clue)) bad.push(id);
+        });
+        assert(bad.length === 0, "missing clues for days: " + bad.join(', '));
+      });
+
+      t("day10 clue contains a birthday message", function () {
+        var clue = th.games && th.games.day10 && th.games.day10.clue;
+        assert(isNonEmptyString(clue) &&
+               clue.toLowerCase().indexOf('birthday') !== -1,
+               "day10 clue missing 'birthday': " + clue);
+      });
+
+      // ── cardEmojis & patternEmojis ────────────────────────────────────────
+
+      t("cardEmojis has at least 20 entries (enough for a 5×4 Memory grid)", function () {
+        assert(Array.isArray(th.cardEmojis) && th.cardEmojis.length >= 20,
+               "only " + (th.cardEmojis && th.cardEmojis.length) + " cardEmojis");
+      });
+
+      t("cardEmojis are all non-empty strings", function () {
+        var bad = [];
+        (th.cardEmojis || []).forEach(function (e, i) {
+          if (!isNonEmptyString(e)) bad.push(i);
+        });
+        assert(bad.length === 0, "empty cardEmoji at indices: " + bad.join(', '));
+      });
+
+      t("patternEmojis has at least 9 entries (for a 3×3 pattern grid)", function () {
+        assert(Array.isArray(th.patternEmojis) && th.patternEmojis.length >= 9,
+               "only " + (th.patternEmojis && th.patternEmojis.length) + " patternEmojis");
+      });
+
+      // ── memoryLevels ──────────────────────────────────────────────────────
+
+      t("memoryLevels has exactly 10 entries", function () {
+        assert(Array.isArray(th.memoryLevels) && th.memoryLevels.length === 10,
+               "expected 10, got " + (th.memoryLevels && th.memoryLevels.length));
+      });
+
+      t("memoryLevels ids are 1–10 in sequential order", function () {
+        var ids = (th.memoryLevels || []).map(function (l) { return l.id; });
+        var expected = [1,2,3,4,5,6,7,8,9,10];
+        expected.forEach(function (n, i) {
+          assert(ids[i] === n, "id at index " + i + " is " + ids[i] + ", expected " + n);
+        });
+      });
+
+      t("each memoryLevel has id, name, emoji, type, badge, and starMoves[3]", function () {
+        (th.memoryLevels || []).forEach(function (lv, i) {
+          assert(typeof lv.id === 'number',         "level " + i + ": id not a number");
+          assert(isNonEmptyString(lv.name),         "level " + i + ": name empty");
+          assert(isNonEmptyString(lv.emoji),        "level " + i + ": emoji empty");
+          assert(VALID_MEMORY_TYPES.indexOf(lv.type) !== -1,
+                 "level " + i + ": invalid type '" + lv.type + "'");
+          assert(isNonEmptyString(lv.badge),        "level " + i + ": badge empty");
+          assert(Array.isArray(lv.starMoves) && lv.starMoves.length === 3,
+                 "level " + i + ": starMoves must be array of 3");
+        });
+      });
+
+      t("each memoryLevel has type-appropriate grid fields", function () {
+        (th.memoryLevels || []).forEach(function (lv, i) {
+          if (lv.type === 'memory' || lv.type === 'speed') {
+            assert(typeof lv.cols === 'number' && typeof lv.rows === 'number',
+                   "level " + i + " (type=" + lv.type + "): missing cols/rows");
+          } else if (lv.type === 'pattern') {
+            assert(typeof lv.patternLen === 'number' && typeof lv.gridSize === 'number',
+                   "level " + i + " (pattern): missing patternLen/gridSize");
+          }
+        });
+      });
+
+      // ── catchLevels ───────────────────────────────────────────────────────
+
+      t("catchLevels has exactly 10 entries with required fields", function () {
+        assert(Array.isArray(th.catchLevels) && th.catchLevels.length === 10,
+               "expected 10, got " + (th.catchLevels && th.catchLevels.length));
+        (th.catchLevels || []).forEach(function (lv, i) {
+          ['num','target','time','speed','enemyChance','spawnRate'].forEach(function (k) {
+            assert(typeof lv[k] === 'number',
+                   "catchLevel " + i + " missing numeric field '" + k + "'");
+          });
+        });
+      });
+
+      t("catchLevels nums are 1–10 in order", function () {
+        (th.catchLevels || []).forEach(function (lv, i) {
+          assert(lv.num === i + 1, "catchLevel " + i + " num=" + lv.num + ", expected " + (i+1));
+        });
+      });
+
+      t("catchLevels speed increases monotonically across levels", function () {
+        var lvs = th.catchLevels || [];
+        for (var i = 1; i < lvs.length; i++) {
+          assert(lvs[i].speed >= lvs[i-1].speed,
+                 "speed drops at level " + (i+1) + ": " + lvs[i].speed + " < " + lvs[i-1].speed);
+        }
+      });
+
+      t("catchLevels target increases monotonically across levels", function () {
+        var lvs = th.catchLevels || [];
+        for (var i = 1; i < lvs.length; i++) {
+          assert(lvs[i].target >= lvs[i-1].target,
+                 "target drops at level " + (i+1) + ": " + lvs[i].target + " < " + lvs[i-1].target);
+        }
+      });
+
+      // ── stackLevels ───────────────────────────────────────────────────────
+
+      t("stackLevels has exactly 10 entries with required fields", function () {
+        assert(Array.isArray(th.stackLevels) && th.stackLevels.length === 10,
+               "expected 10, got " + (th.stackLevels && th.stackLevels.length));
+        (th.stackLevels || []).forEach(function (lv, i) {
+          ['num','target','time','speed'].forEach(function (k) {
+            assert(typeof lv[k] === 'number',
+                   "stackLevel " + i + " missing numeric field '" + k + "'");
+          });
+        });
+      });
+
+      t("stackLevels speed increases monotonically across levels", function () {
+        var lvs = th.stackLevels || [];
+        for (var i = 1; i < lvs.length; i++) {
+          assert(lvs[i].speed >= lvs[i-1].speed,
+                 "speed drops at level " + (i+1) + ": " + lvs[i].speed + " < " + lvs[i-1].speed);
+        }
+      });
+
+      t("stackLevels target increases monotonically across levels", function () {
+        var lvs = th.stackLevels || [];
+        for (var i = 1; i < lvs.length; i++) {
+          assert(lvs[i].target >= lvs[i-1].target,
+                 "target drops at level " + (i+1) + ": " + lvs[i].target + " < " + lvs[i-1].target);
+        }
+      });
+
+      // ── wordleLevels ──────────────────────────────────────────────────────
+
+      t("wordleLevels has exactly 10 entries", function () {
+        assert(Array.isArray(th.wordleLevels) && th.wordleLevels.length === 10,
+               "expected 10, got " + (th.wordleLevels && th.wordleLevels.length));
+      });
+
+      t("all wordleLevel words are exactly 5 uppercase letters [A-Z]", function () {
+        var bad = [];
+        (th.wordleLevels || []).forEach(function (lv, i) {
+          if (!isFiveLetterWord(lv.word)) bad.push(i + ":'" + lv.word + "'");
+        });
+        assert(bad.length === 0,
+               "words that are NOT 5 uppercase letters: " + bad.join(', '));
+      });
+
+      t("all wordleLevel words are unique within the theme", function () {
+        var seen = {};
+        var dupes = [];
+        (th.wordleLevels || []).forEach(function (lv) {
+          var w = lv.word;
+          if (seen[w]) dupes.push(w);
+          seen[w] = true;
+        });
+        assert(dupes.length === 0, "duplicate wordle words: " + dupes.join(', '));
+      });
+
+      t("all wordleLevel entries have a non-empty hint", function () {
+        var bad = [];
+        (th.wordleLevels || []).forEach(function (lv, i) {
+          if (!isNonEmptyString(lv.hint)) bad.push(i);
+        });
+        assert(bad.length === 0, "missing hints at indices: " + bad.join(', '));
+      });
+
+      // ── mosaicLevels ──────────────────────────────────────────────────────
+
+      t("mosaicLevels has exactly 10 entries (one per game level)", function () {
+        assert(Array.isArray(th.mosaicLevels) && th.mosaicLevels.length === 10,
+               "expected 10, got " + (th.mosaicLevels && th.mosaicLevels.length));
+      });
+
+      t("each mosaicLevel has a numeric num and non-empty label", function () {
+        var bad = [];
+        (th.mosaicLevels || []).forEach(function (lv, i) {
+          if (typeof lv.num !== 'number' || !isNonEmptyString(lv.label)) bad.push(i);
+        });
+        assert(bad.length === 0, "malformed mosaicLevels at indices: " + bad.join(', '));
+      });
+
+      // ── mosaicColors ─────────────────────────────────────────────────────
+
+      t("mosaicColors has 8 elements: null at index 0, then 7 color strings", function () {
+        assert(Array.isArray(th.mosaicColors) && th.mosaicColors.length === 8,
+               "expected 8 mosaicColors, got " + (th.mosaicColors && th.mosaicColors.length));
+        assert(th.mosaicColors[0] === null, "mosaicColors[0] must be null (unused slot)");
+        for (var i = 1; i < 8; i++) {
+          assert(isNonEmptyString(th.mosaicColors[i]),
+                 "mosaicColors[" + i + "] is empty");
+        }
+      });
+
+      // ── confettiColors ────────────────────────────────────────────────────
+
+      t("confettiColors has at least 6 color strings", function () {
+        assert(Array.isArray(th.confettiColors) && th.confettiColors.length >= 6,
+               "only " + (th.confettiColors && th.confettiColors.length) + " confettiColors");
+        (th.confettiColors || []).forEach(function (c, i) {
+          assert(isNonEmptyString(c), "confettiColors[" + i + "] is empty");
+        });
+      });
+
+      // ── paintMessages ─────────────────────────────────────────────────────
+
+      t("paintMessages has exactly 4 entries: '' then 3 non-empty strings", function () {
+        assert(Array.isArray(th.paintMessages) && th.paintMessages.length === 4,
+               "expected 4 paintMessages, got " + (th.paintMessages && th.paintMessages.length));
+        assert(th.paintMessages[0] === '',
+               "paintMessages[0] must be empty (0-star placeholder)");
+        for (var i = 1; i <= 3; i++) {
+          assert(isNonEmptyString(th.paintMessages[i]),
+                 "paintMessages[" + i + "] is empty");
+        }
+      });
+
+      // ── quest ─────────────────────────────────────────────────────────────
+
+      t("quest has all " + REQUIRED_QUEST.length + " required keys with non-empty values", function () {
+        var missing = [];
+        REQUIRED_QUEST.forEach(function (key) {
+          if (!th.quest || !isNonEmptyString(th.quest[key])) missing.push(key);
+        });
+        assert(missing.length === 0, "missing quest keys: " + missing.join(', '));
+      });
+    });
+
+    // ── Public API tests ──────────────────────────────────────────────────────
+
+    suite("App.Theme.getThemeName()");
+
+    t("returns activeTheme from config", function () {
+      assert(App.Theme.getThemeName({ activeTheme: 'transformer' }) === 'transformer',
+             "should return 'transformer'");
+    });
+
+    t("returns 'panda' when config has no activeTheme", function () {
+      assert(App.Theme.getThemeName({}) === 'panda', "default should be 'panda'");
+    });
+
+    t("returns 'panda' when config is null", function () {
+      assert(App.Theme.getThemeName(null) === 'panda', "null config → 'panda'");
+    });
+
+    suite("App.Theme.getGameTitle()");
+
+    t("returns the themed title for a given dayId", function () {
+      var th = ALL_THEMES.panda;
+      assert(App.Theme.getGameTitle(th, 'day1', 'fallback') === 'Panda Catch',
+             "panda day1 title");
+    });
+
+    t("returns the fallback when dayId is not in theme", function () {
+      var th = ALL_THEMES.panda;
+      assert(App.Theme.getGameTitle(th, 'day99', 'My Fallback') === 'My Fallback',
+             "unknown day → fallback");
+    });
+
+    t("returns the fallback when theme is null", function () {
+      assert(App.Theme.getGameTitle(null, 'day1', 'FB') === 'FB',
+             "null theme → fallback");
+    });
+
+    t("returns dayId when both theme and fallback are missing", function () {
+      var result = App.Theme.getGameTitle(null, 'day5', undefined);
+      assert(result === 'day5', "returns dayId as last-resort: " + result);
+    });
+
+    t("all 10 themes return themed (not generic) titles for day1", function () {
+      var generic = 'Panda Catch'; // panda day1 title as reference
+      THEME_NAMES.forEach(function (name) {
+        var title = App.Theme.getGameTitle(ALL_THEMES[name], 'day1', 'FALLBACK');
+        assert(title !== 'FALLBACK', name + " day1 title is missing (returned fallback)");
+        assert(typeof title === 'string' && title.length > 0,
+               name + " day1 title is empty");
+      });
+    });
+
+    suite("App.Theme.getGameClue()");
+
+    t("returns the clue for a given dayId", function () {
+      var clue = App.Theme.getGameClue(ALL_THEMES.panda, 'day1', 'FALLBACK');
+      assert(clue !== 'FALLBACK' && clue.length > 0, "panda day1 clue is empty");
+    });
+
+    t("returns fallback when dayId is missing", function () {
+      assert(App.Theme.getGameClue(ALL_THEMES.panda, 'day99', 'FB') === 'FB',
+             "unknown dayId → fallback");
+    });
+
+    t("returns empty string when clue is missing and no fallback given", function () {
+      assert(App.Theme.getGameClue(null, 'day1') === '', "null theme → ''");
+    });
+
+    t("day10 clue contains 'Happy Birthday' in all 10 themes", function () {
+      THEME_NAMES.forEach(function (name) {
+        var clue = App.Theme.getGameClue(ALL_THEMES[name], 'day10', '');
+        assert(clue.toLowerCase().indexOf('birthday') !== -1,
+               name + " day10 clue missing 'birthday': " + clue);
+      });
+    });
+
+    suite("App.Theme.getString()");
+
+    t("returns the string value for a known key", function () {
+      assert(App.Theme.getString(ALL_THEMES.panda, 'playBtn', 'FB') === 'Play Now! 🐼',
+             "panda playBtn");
+    });
+
+    t("returns fallback when key is missing from theme strings", function () {
+      assert(App.Theme.getString(ALL_THEMES.panda, 'nonExistentKey', 'DEFAULT') === 'DEFAULT',
+             "missing key → fallback");
+    });
+
+    t("returns empty string when key is missing and no fallback given", function () {
+      assert(App.Theme.getString(ALL_THEMES.panda, 'nonExistentKey') === '',
+             "missing key, no fallback → ''");
+    });
+
+    t("returns fallback when theme is null", function () {
+      assert(App.Theme.getString(null, 'playBtn', 'FB') === 'FB',
+             "null theme → fallback");
+    });
+
+    suite("App.Theme.getIcon()");
+
+    t("returns the icon emoji for a known key", function () {
+      assert(App.Theme.getIcon(ALL_THEMES.panda, 'player', '?') === '🐼',
+             "panda player icon");
+    });
+
+    t("returns '🎮' as the default when key is missing and no fallback given", function () {
+      assert(App.Theme.getIcon(ALL_THEMES.panda, 'unknown') === '🎮',
+             "missing key → '🎮'");
+    });
+
+    t("returns provided fallback over default '🎮'", function () {
+      assert(App.Theme.getIcon(null, 'player', '⭐') === '⭐', "null theme → provided fallback");
+    });
+
+    suite("App.Theme.getCanvas()");
+
+    t("returns the canvas color for a known key", function () {
+      var c = App.Theme.getCanvas(ALL_THEMES.panda, 'bgFill', '#000');
+      assert(c !== '#000' && typeof c === 'string' && c.length > 0,
+             "panda bgFill should not be the fallback");
+    });
+
+    t("returns '#222' as the default when key is missing and no fallback given", function () {
+      assert(App.Theme.getCanvas(ALL_THEMES.panda, 'nonExistent') === '#222',
+             "missing key → '#222'");
+    });
+
+    t("returns provided fallback when theme is null", function () {
+      assert(App.Theme.getCanvas(null, 'bgFill', '#abc') === '#abc',
+             "null theme → provided fallback");
+    });
+
+    // ── resolveThemes() override / merge tests ────────────────────────────────
+
+    suite("App.Theme.resolveThemes() — config override merging");
+
+    t("resolveThemes({}) returns all 10 theme keys", function () {
+      var keys = Object.keys(ALL_THEMES);
+      THEME_NAMES.forEach(function (name) {
+        assert(keys.indexOf(name) !== -1, name + " not in resolvedThemes");
+      });
+    });
+
+    t("overriding a game title replaces only that title", function () {
+      var cfg = {
+        activeTheme: 'panda',
+        themes: { panda: { games: { day1: { title: 'CUSTOM TITLE', clue: 'custom clue' } } } }
+      };
+      var resolved = App.Theme.resolveThemes(cfg);
+      assert(resolved.panda.games.day1.title === 'CUSTOM TITLE',
+             "custom day1 title not applied");
+      assert(resolved.panda.games.day2.title === 'Panda Memory',
+             "day2 base title should be preserved");
+    });
+
+    t("overriding a string key merges on top of base strings", function () {
+      var cfg = {
+        themes: { panda: { strings: { playBtn: 'GO GO GO!' } } }
+      };
+      var resolved = App.Theme.resolveThemes(cfg);
+      assert(resolved.panda.strings.playBtn === 'GO GO GO!',
+             "custom playBtn not applied");
+      assert(isNonEmptyString(resolved.panda.strings.mascotSays),
+             "base mascotSays should be preserved");
+    });
+
+    t("overriding a color token merges on top of base colors", function () {
+      var cfg = {
+        themes: { panda: { colors: { accent: '#ff0000' } } }
+      };
+      var resolved = App.Theme.resolveThemes(cfg);
+      assert(resolved.panda.colors.accent === '#ff0000',
+             "custom accent color not applied");
+      assert(isNonEmptyString(resolved.panda.colors.bg),
+             "base bg color should be preserved");
+    });
+
+    t("overriding mascot and name works", function () {
+      var cfg = {
+        themes: { panda: { name: 'My Custom Theme', mascot: '🎂' } }
+      };
+      var resolved = App.Theme.resolveThemes(cfg);
+      assert(resolved.panda.name === 'My Custom Theme', "name not overridden");
+      assert(resolved.panda.mascot === '🎂',            "mascot not overridden");
+    });
+
+    t("adding a completely new theme key via config is preserved", function () {
+      var cfg = {
+        themes: {
+          myCustomTheme: {
+            name: 'Custom', mascot: '🎉',
+            colors: {}, canvas: {}, icons: {}, strings: {}, games: {},
+            cardEmojis: [], patternEmojis: [], memoryLevels: [],
+            catchLevels: [], stackLevels: [], wordleLevels: [],
+            mosaicLevels: [], mosaicColors: [], confettiColors: [],
+            paintMessages: [], quest: {}
+          }
+        }
+      };
+      var resolved = App.Theme.resolveThemes(cfg);
+      assert(!!resolved.myCustomTheme, "custom theme key not in resolved themes");
+      assert(resolved.myCustomTheme.name === 'Custom', "custom theme name wrong");
+    });
+
+    t("applyFromConfig for an unknown theme key falls back gracefully", function () {
+      var cfg = { activeTheme: 'nonexistentTheme' };
+      var result = App.Theme.applyFromConfig(cfg);
+      assert(result && typeof result === 'object',
+             "applyFromConfig should return an object, not throw");
+      // Should fall back to panda or the FALLBACK_THEMES.panda
+      assert(isNonEmptyString(result.name), "fallback theme has no name");
+    });
+
+    // ── Cross-theme uniqueness ────────────────────────────────────────────────
+
+    suite("Cross-Theme Uniqueness");
+
+    t("all 10 theme names are unique", function () {
+      var names = THEME_NAMES.map(function (k) { return ALL_THEMES[k].name; });
+      var unique = names.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      assert(unique.length === 10,
+             "duplicate theme names found: " + names.filter(function (v, i, a) {
+               return a.indexOf(v) !== i;
+             }).join(', '));
+    });
+
+    t("all 10 mascot emojis are unique", function () {
+      var mascots = THEME_NAMES.map(function (k) { return ALL_THEMES[k].mascot; });
+      var unique = mascots.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      assert(unique.length === 10,
+             "duplicate mascots: " + mascots.filter(function (v, i, a) {
+               return a.indexOf(v) !== i;
+             }).join(', '));
+    });
+
+    t("all 10 appTitles in strings are unique", function () {
+      var titles = THEME_NAMES.map(function (k) {
+        return ALL_THEMES[k].strings && ALL_THEMES[k].strings.appTitle;
+      });
+      var unique = titles.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      assert(unique.length === 10,
+             "duplicate appTitles: " + titles.filter(function (v, i, a) {
+               return a.indexOf(v) !== i;
+             }).join(', '));
+    });
+
+    t("all 10 themes have unique player icons", function () {
+      var players = THEME_NAMES.map(function (k) {
+        return ALL_THEMES[k].icons && ALL_THEMES[k].icons.player;
+      });
+      var unique = players.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      assert(unique.length === 10,
+             "duplicate player icons: " + players.filter(function (v, i, a) {
+               return a.indexOf(v) !== i;
+             }).join(', '));
+    });
+
+    t("all 10 themes have different bg colors (unique visual identity)", function () {
+      var bgs = THEME_NAMES.map(function (k) {
+        return ALL_THEMES[k].colors && ALL_THEMES[k].colors.bg;
+      });
+      var unique = bgs.filter(function (v, i, a) { return a.indexOf(v) === i; });
+      assert(unique.length === 10,
+             "duplicate bg colors: " + bgs.filter(function (v, i, a) {
+               return a.indexOf(v) !== i;
+             }).join(', '));
+    });
+
+    // ── Render results ────────────────────────────────────────────────────────
+
+    (function () {
+      var out  = document.getElementById("output");
+      var pass = 0, fail = 0;
+      var lastSuite = "";
+
+      for (var i = 0; i < _results.length; i++) {
+        var r = _results[i];
+
+        if (r.suite !== lastSuite) {
+          lastSuite = r.suite;
+          var h = document.createElement("h2");
+          h.textContent = r.suite;
+          out.appendChild(h);
+        }
+
+        var row = document.createElement("div");
+        row.className = "result " + (r.ok ? "pass" : "fail");
+        row.textContent = (r.ok ? "✓ " : "✗ ") + r.name;
+        out.appendChild(row);
+
+        if (!r.ok) {
+          var detail = document.createElement("div");
+          detail.className = "fail-detail";
+          detail.textContent = r.err;
+          out.appendChild(detail);
+        }
+
+        if (r.ok) pass++; else fail++;
+      }
+
+      var summary = document.createElement("div");
+      summary.className = "summary " + (fail === 0 ? "ok" : "err");
+      summary.textContent = pass + " passed · " + fail + " failed · " +
+                            (pass + fail) + " total";
+      out.appendChild(summary);
+
+      if (fail > 0) {
+        var note = document.createElement("p");
+        note.className = "note";
+        note.textContent =
+          "All failures indicate real issues to fix. " +
+          "See theme-manager.js FALLBACK_THEMES for the theme definitions.";
+        out.appendChild(note);
+      }
+    })();
+  </script>
+</body>
+</html>

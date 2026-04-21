@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Game</title>
+  <style>
+    @import url('../assets/fonts/fonts.css');
+
+    :root {
+      --game-max-width: min(92vw, 560px);
+      --green-dark: var(--surface, #111827);
+      --green-mid: var(--accent-2, #3b82f6);
+      --green-light: var(--muted, #9bb8d4);
+      --green-pale: var(--surface-2, #1e2d45);
+      --yellow: #ffd166;
+      --orange: #f4845f;
+      --red: #ef233c;
+      --gray: #5f646e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg, #0a0e1a);
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: #222;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: var(--stripe-texture);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .screen { display: none; position: relative; z-index: 1; }
+    .screen.active { display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+
+    #launcher-bar {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 9px 13px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      position: sticky; top: 0; z-index: 20; width: 100%;
+    }
+    .lb-left { display: flex; align-items: center; gap: 8px; }
+    .lb-av {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-2,#3b82f6); display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 800;
+      color: #fff; flex-shrink: 0;
+    }
+    .lb-name { font-size: 15px; font-weight: 700; color: #fff; }
+    .lb-btn {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+      color: rgba(255,255,255,.8); font-size: 15px; font-weight: 700;
+      padding: 5px 11px; border-radius: 10px; cursor: pointer;
+      font-family: 'Nunito', sans-serif;
+    }
+
+    #screen-levels { padding: 2rem 1rem; gap: 1.2rem; }
+    .level-header { text-align: center; }
+    .game-name-tag {
+      display: inline-block; font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px; color: var(--green-light);
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+      border-radius: 20px; padding: 3px 14px; margin-bottom: 6px;
+    }
+    .level-header h2 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.2rem; color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,.3);
+    }
+    .level-header p { color: var(--green-light); font-weight: 600; font-size: .95rem; margin-top: 4px; }
+    .level-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      gap: 10px; width: 100%; max-width: var(--game-max-width);
+    }
+    .level-btn {
+      aspect-ratio: 1; border-radius: 16px; border: none;
+      cursor: pointer; font-family: 'Fredoka One', cursive;
+      font-size: 1.5rem; transition: transform .15s, box-shadow .15s;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .lvl-num { font-size: 1.6rem; line-height: 1; }
+    .lvl-stars { font-size: .7rem; letter-spacing: 1px; min-height: 14px; }
+    .level-btn.unlocked { background: var(--yellow); color: var(--green-dark); box-shadow: 0 4px 0 rgba(0,0,0,.2); }
+    .level-btn.completed { background: var(--green-mid); color: #fff; box-shadow: 0 4px 0 var(--green-dark); }
+    .level-btn.locked { background: rgba(255,255,255,.1); color: rgba(255,255,255,.3); cursor: not-allowed; }
+
+    .level-actions { display: flex; gap: 10px; width: 100%; max-width: var(--game-max-width); justify-content: center; }
+    .btn-sm {
+      padding: 9px 22px; border-radius: 50px; border: none;
+      font-family: 'Nunito', sans-serif; font-weight: 700; font-size: .9rem; cursor: pointer;
+    }
+    .btn-reset { background: var(--orange); color: #fff; }
+
+    #screen-game { padding: 0; background: var(--bg, #1a2e1c); align-items: center; min-height: 100vh; }
+    #game-hud {
+      width: 100%; max-width: var(--game-max-width);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 10px 90px; background: rgba(0,0,0,.3);
+      border-bottom: 2px solid rgba(255,255,255,.1); position: relative;
+    }
+    #hud-back-btn {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22);
+      color: rgba(255,255,255,.85); font-family: 'Nunito', sans-serif; font-weight: 700;
+      font-size: .78rem; padding: 5px 10px; border-radius: 10px; cursor: pointer;
+    }
+    .hud-item { display: flex; flex-direction: column; align-items: center; }
+    .hud-label { font-size: .7rem; font-weight: 700; color: rgba(255,255,255,.5); text-transform: uppercase; }
+    .hud-value { font-family: 'Fredoka One', cursive; font-size: 1.35rem; color: #fff; }
+
+    .wordle-wrap { width: 100%; max-width: var(--game-max-width); padding: 14px 14px 20px; }
+    .hint-box {
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+      color: #fff; padding: 10px 12px; margin-bottom: 12px;
+    }
+    .hint-label { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.65); }
+    .hint-text { font-size: .95rem; font-weight: 700; color: var(--text, #fff); margin-top: 2px; }
+
+    .board { display: grid; grid-template-rows: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+    .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .tile {
+      aspect-ratio: 1; border-radius: 10px; border: 2px solid rgba(255,255,255,.22);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Fredoka One', cursive; font-size: 1.65rem;
+      color: #fff; text-transform: uppercase; background: rgba(255,255,255,.05);
+      transition: transform .15s ease, background .2s ease, border-color .2s ease;
+    }
+    .tile.filled { border-color: rgba(255,255,255,.4); transform: scale(1.03); }
+    .tile.correct { background: var(--green-mid); border-color: #7de3ba; }
+    .tile.present { background: var(--yellow); color: #253; border-color: #ffe199; }
+    .tile.absent { background: var(--gray); border-color: #888f9c; }
+
+    .message {
+      min-height: 24px; text-align: center; font-weight: 800; color: var(--yellow, #ffd166); margin-bottom: 10px;
+    }
+
+    .keyboard { display: grid; gap: 6px; }
+    .kb-row { display: flex; gap: 6px; justify-content: center; }
+    .key {
+      min-width: 44px; height: 44px; border: none; border-radius: 9px;
+      background: rgba(255,255,255,.16); color: #fff; font-weight: 800; cursor: pointer;
+      padding: 0 9px; font-size: .9rem; font-family: 'Nunito', sans-serif;
+    }
+    .key.wide { min-width: 62px; font-size: .74rem; }
+    .key.correct { background: var(--green-mid); }
+    .key.present { background: var(--yellow); color: #253; }
+    .key.absent { background: var(--gray); }
+
+    .overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,.6); align-items: center; justify-content: center; padding: 1rem;
+    }
+    .overlay.active { display: flex; }
+    .overlay-card {
+      background: #fff; border-radius: 24px; padding: 2rem;
+      width: 100%; max-width: 420px; text-align: center;
+      box-shadow: 0 16px 64px rgba(0,0,0,.35);
+    }
+    .overlay-title { font-family: 'Fredoka One', cursive; font-size: 2rem; color: var(--green-dark); margin-bottom: .3rem; }
+    .overlay-sub { font-size: .95rem; color: #666; margin-bottom: 1.2rem; }
+    .stars-display { font-size: 2rem; margin-bottom: 1rem; letter-spacing: 4px; }
+    .overlay-btns { display: flex; flex-direction: column; gap: 8px; }
+    .btn-next { background: var(--yellow); color: var(--green-dark); font-family: 'Fredoka One', cursive; font-size: 1.2rem; padding: 12px; border-radius: 14px; border: none; cursor: pointer; }
+    .btn-retry { background: var(--green-pale); color: var(--green-dark); font-weight: 700; font-size: .95rem; padding: 10px; border-radius: 14px; border: none; cursor: pointer; }
+    .btn-menu { background: #f0f0f0; color: #888; font-weight: 700; font-size: .9rem; padding: 9px; border-radius: 14px; border: none; cursor: pointer; }
+
+    .toast {
+      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.8); color: #fff; padding: 10px 24px; border-radius: 50px;
+      font-weight: 700; font-size: .9rem; z-index: 999; opacity: 0; transition: opacity .3s;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+  <!-- ── THEME SYSTEM ── -->
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  /* ── THEME SHORTCUTS ── all game scripts below use these globals:
+     window.__T  = activeTheme object
+     window.__TI = icons   { player, collect, enemy, life, hole }
+     window.__TC = canvas  { bgFill, collectFill, enemyFill, ... }
+     window.__TS = strings { retryBtn, winBtn, resultsBtn, clueTemplate, ... }
+  */
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+  <div id="launcher-bar">
+    <div class="lb-left"><div class="lb-av" id="lb-av">?</div><div class="lb-name" id="lb-name"></div></div>
+    <button class="lb-btn" onclick="goToLauncher()">🏠 Launcher</button>
+  </div>
+
+  <div id="screen-levels" class="screen active">
+    <div class="level-header">
+      <div class="game-name-tag" id="level-game-tag">Loading...</div>
+      <h2>Choose a Level</h2>
+      <p>A familiar brain game: guess the 5-letter word in 6 tries.</p>
+    </div>
+    <div class="level-grid" id="level-grid"></div>
+    <div class="level-actions"><button class="btn-sm btn-reset" onclick="resetProgress()">🔄 Reset Progress</button></div>
+  </div>
+
+  <div id="screen-game" class="screen">
+    <div id="game-hud">
+      <button id="hud-back-btn" onclick="backToLevels()">← Levels</button>
+      <div class="hud-item"><span class="hud-label">Level</span><span class="hud-value" id="hud-level">1</span></div>
+      <div class="hud-item"><span class="hud-label">Tries Left</span><span class="hud-value" id="hud-tries">6</span></div>
+      <div class="hud-item"><span class="hud-label">Best</span><span class="hud-value" id="hud-best">0★</span></div>
+    </div>
+    <div class="wordle-wrap">
+      <div class="hint-box"><div class="hint-label">Hint</div><div class="hint-text" id="hint-text">A cute forest animal</div></div>
+      <div class="board" id="board"></div>
+      <div class="message" id="msg"></div>
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="overlay-card">
+      <div style="font-size:3.2rem;margin-bottom:.4rem;" id="ov-emoji">🎮</div>
+      <div class="overlay-title" id="ov-title">Level Complete!</div>
+      <div class="overlay-sub" id="ov-sub">Nice thinking!</div>
+      <div class="stars-display" id="ov-stars">⭐️⭐️⭐️</div>
+      <div class="overlay-btns">
+        <button class="btn-next" id="next-btn" onclick="nextLevel()">Next Level ▶</button>
+        <button class="btn-retry" onclick="retryLevel()">🔁 Play Again</button>
+        <button class="btn-menu" onclick="toLevels()">📋 Level Select</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const STORAGE_KEY = 'birthday_wordle_progress_v1';
+    const OLD_STORAGE_KEY = 'panda_wordle_progress_v1';
+    const DEFAULT_LEVELS = [
+      {word:'ROBOT', hint:'What Transformers are 🤖'},
+      {word:'LASER', hint:'What Autobots fire ⚡'},
+      {word:'HONEY', hint:'Sweet and sticky treat'},
+      {word:'PRIME', hint:'Leader of the Autobots'},
+      {word:'BRAIN', hint:'You are using this right now'},
+      {word:'CLOUD', hint:'It floats in the sky'},
+      {word:'MUSIC', hint:'You can hear and dance to it'},
+      {word:'PARTY', hint:'Birthday celebration time!'},
+      {word:'HAPPY', hint:'How birthdays should feel'},
+      {word:'CHESS', hint:'A strategy board game'},
+      {word:'SHARP', hint:'Quick thinker = ___ mind'},
+      {word:'MAGIC', hint:'Feels impossible but fun'},
+      {word:'CANDY', hint:'Sweet colorful snack'},
+      {word:'PIZZA', hint:'Cheesy favorite food'},
+      {word:'DREAM', hint:'Night-time imagination'},
+      {word:'LIGHT', hint:'Turns dark into bright'},
+      {word:'WATER', hint:'You drink this every day'},
+      {word:'BIRTH', hint:'Start of a birthday word'},
+      {word:'LAUGH', hint:'Best sound at a party'},
+      {word:'SMART', hint:'Exactly what you are'}
+    ];
+    const LEVELS = (window.__T && window.__T.wordleLevels) ? window.__T.wordleLevels : DEFAULT_LEVELS;
+
+    const state = {
+      progress: loadProgress(),
+      currentLevel: 1,
+      row: 0,
+      col: 0,
+      solved: false,
+      guesses: Array.from({ length: 6 }, () => Array(5).fill('')),
+      statuses: Array.from({ length: 6 }, () => Array(5).fill('')),
+      keyboardState: {}
+    };
+
+    const boardEl = document.getElementById('board');
+    const msgEl = document.getElementById('msg');
+
+    function loadProgress(){
+      try {
+        let old = localStorage.getItem(OLD_STORAGE_KEY);
+        let current = localStorage.getItem(STORAGE_KEY);
+        if (old && !current) {
+          localStorage.setItem(STORAGE_KEY, old);
+          current = old;
+        }
+        return JSON.parse(current) || { stars: {}, unlocked: 1 };
+      }
+      catch(e){ return { stars: {}, unlocked: 1 }; }
+    }
+    function saveProgress(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.progress)); }
+
+    function getPlayerName() {
+      try {
+        const data = JSON.parse(localStorage.getItem('pandabday_launcher') || '{}');
+        if (!data.lastPlayer) return 'Player';
+        return data.lastPlayer;
+      } catch { return 'Player'; }
+    }
+
+    function initPlayerBar() {
+      const name = getPlayerName();
+      document.getElementById('lb-name').textContent = name;
+      document.getElementById('lb-av').textContent = name.substring(0, 2).toUpperCase();
+    }
+
+    function goToLauncher(){ window.top.location.href = '../launcher/index.html'; }
+    function toLevels(){
+      document.getElementById('overlay').classList.remove('active');
+      document.getElementById('screen-game').classList.remove('active');
+      document.getElementById('screen-levels').classList.add('active');
+      renderLevels();
+    }
+    function backToLevels(){ toLevels(); }
+
+    function renderLevels(){
+      const grid = document.getElementById('level-grid');
+      grid.innerHTML = '';
+      for (let i=1;i<=LEVELS.length;i++) {
+        const unlocked = i <= state.progress.unlocked;
+        const stars = state.progress.stars[i] || 0;
+        const btn = document.createElement('button');
+        btn.className = `level-btn ${!unlocked ? 'locked' : (stars > 0 ? 'completed' : 'unlocked')}`;
+        btn.innerHTML = `<span class="lvl-num">${unlocked ? i : '🔒'}</span><span class="lvl-stars">${'⭐'.repeat(stars)}</span>`;
+        if (unlocked) btn.onclick = () => startLevel(i);
+        grid.appendChild(btn);
+      }
+    }
+
+    function startLevel(levelNum){
+      state.currentLevel = levelNum;
+      state.row = 0; state.col = 0; state.solved = false;
+      state.guesses = Array.from({ length: 6 }, () => Array(5).fill(''));
+      state.statuses = Array.from({ length: 6 }, () => Array(5).fill(''));
+      state.keyboardState = {};
+      document.getElementById('screen-levels').classList.remove('active');
+      document.getElementById('screen-game').classList.add('active');
+      document.getElementById('hud-level').textContent = levelNum;
+      document.getElementById('hud-tries').textContent = '6';
+      document.getElementById('hud-best').textContent = `${state.progress.stars[levelNum] || 0}★`;
+      document.getElementById('hint-text').textContent = LEVELS[levelNum - 1].hint;
+      document.getElementById('msg').textContent = '';
+      renderBoard();
+      renderKeyboard();
+    }
+
+    function renderBoard(){
+      boardEl.innerHTML = '';
+      for (let r=0; r<6; r++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        for (let c=0; c<5; c++) {
+          const tile = document.createElement('div');
+          const letter = state.guesses[r][c];
+          const status = state.statuses[r][c];
+          tile.className = `tile ${letter ? 'filled' : ''} ${status}`;
+          tile.textContent = letter;
+          row.appendChild(tile);
+        }
+        boardEl.appendChild(row);
+      }
+    }
+
+    const kbRows = ['QWERTYUIOP','ASDFGHJKL','ENTERZXCVBNM⌫'];
+    function renderKeyboard(){
+      const wrap = document.getElementById('keyboard');
+      wrap.innerHTML = '';
+      kbRows.forEach(str => {
+        const row = document.createElement('div'); row.className = 'kb-row';
+        const chars = str === 'ENTERZXCVBNM⌫' ? ['ENTER','Z','X','C','V','B','N','M','BACK'] : str.split('');
+        chars.forEach(ch => {
+          const b = document.createElement('button');
+          b.className = `key ${(ch === 'ENTER' || ch === 'BACK') ? 'wide' : ''}`;
+          b.textContent = ch === 'BACK' ? '⌫' : ch;
+          const keyName = ch === 'BACK' ? 'BACK' : ch;
+          if (state.keyboardState[keyName]) b.classList.add(state.keyboardState[keyName]);
+          b.onclick = () => onKey(keyName);
+          row.appendChild(b);
+        });
+        wrap.appendChild(row);
+      });
+    }
+
+    function onKey(k){
+      if (state.solved) return;
+      if (/^[A-Z]$/.test(k)) {
+        if (state.col < 5) {
+          state.guesses[state.row][state.col] = k;
+          state.col++;
+        }
+      } else if (k === 'BACK') {
+        if (state.col > 0) {
+          state.col--;
+          state.guesses[state.row][state.col] = '';
+        }
+      } else if (k === 'ENTER') {
+        submitGuess();
+      }
+      renderBoard();
+    }
+
+    function statusRank(s){ return ({'':0,'absent':1,'present':2,'correct':3})[s] || 0; }
+
+    function submitGuess(){
+      if (state.col < 5) { flash('Need 5 letters'); return; }
+      const target = LEVELS[state.currentLevel - 1].word;
+      const guess = state.guesses[state.row].join('');
+      const res = Array(5).fill('absent');
+      const remain = {};
+
+      for (let i=0;i<5;i++) {
+        if (guess[i] === target[i]) res[i] = 'correct';
+        else remain[target[i]] = (remain[target[i]] || 0) + 1;
+      }
+      for (let i=0;i<5;i++) {
+        if (res[i] !== 'correct' && remain[guess[i]] > 0) {
+          res[i] = 'present';
+          remain[guess[i]]--;
+        }
+      }
+      state.statuses[state.row] = res;
+      for (let i=0;i<5;i++) {
+        const l = guess[i];
+        if (statusRank(res[i]) > statusRank(state.keyboardState[l] || '')) state.keyboardState[l] = res[i];
+      }
+      renderBoard();
+      renderKeyboard();
+
+      if (guess === target) {
+        state.solved = true;
+        const stars = state.row < 2 ? 3 : (state.row < 4 ? 2 : 1);
+        state.progress.stars[state.currentLevel] = Math.max(stars, state.progress.stars[state.currentLevel] || 0);
+        state.progress.unlocked = Math.max(state.progress.unlocked, Math.min(LEVELS.length, state.currentLevel + 1));
+        saveProgress();
+        endLevel(true, target, stars);
+        return;
+      }
+
+      state.row++; state.col = 0;
+      document.getElementById('hud-tries').textContent = String(6 - state.row);
+      if (state.row >= 6) {
+        state.solved = true;
+        endLevel(false, target, 0);
+      }
+    }
+
+    function endLevel(win, word, stars){
+      const t = window.__T || {};
+      const TS = window.__TS || {};
+      document.getElementById('ov-emoji').textContent = win ? (t.mascot || '🤖') : (window.__TI && window.__TI.hole || '⚙️');
+      document.getElementById('ov-title').textContent = win ? (TS.wordleWinTitle || 'Code Cracked!') : 'So Close!';
+      
+      // Clearly show the correct answer on failure
+      const resultMsg = win 
+        ? `${TS.wordleWinSub || "Nice thinking!"} The word was ${word}.` 
+        : `The correct word was <b>${word}</b>. ${TS.wordleFailSub || "Try again!"}`;
+      
+      document.getElementById('ov-sub').innerHTML = resultMsg;
+      document.getElementById('ov-stars').textContent = win ? '⭐'.repeat(stars) : '☆☆☆';
+      document.getElementById('next-btn').style.display = (win && state.currentLevel < LEVELS.length) ? 'block' : 'none';
+      document.getElementById('overlay').classList.add('active');
+      renderLevels();
+    }
+
+    // Hints are now pulled dynamically from LEVELS which comes from theme
+    // No legacy manual updates needed here anymore.
+
+    function nextLevel(){
+      document.getElementById('overlay').classList.remove('active');
+      startLevel(Math.min(LEVELS.length, state.currentLevel + 1));
+    }
+    function retryLevel(){
+      document.getElementById('overlay').classList.remove('active');
+      startLevel(state.currentLevel);
+    }
+
+    function resetProgress(){
+      if (!confirm('Reset all Cyber-Words progress?')) return;
+      state.progress = { stars: {}, unlocked: 1 };
+      saveProgress();
+      renderLevels();
+      flash('Progress reset!');
+    }
+
+    function flash(txt){
+      msgEl.textContent = txt;
+      setTimeout(() => { if (msgEl.textContent === txt) msgEl.textContent = ''; }, 1300);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (!document.getElementById('screen-game').classList.contains('active')) return;
+      const k = e.key.toUpperCase();
+      if (k === 'BACKSPACE') onKey('BACK');
+      else if (k === 'ENTER') onKey('ENTER');
+      else if (/^[A-Z]$/.test(k)) onKey(k);
+    });
+
+    initPlayerBar();
+    renderLevels();
+  </script>
+
+
+
+  <script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    var gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    var tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag');
+    if (tag) tag.textContent = gameTitle;
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    window.writeLauncherProgress = function(starsEarned) {
+      if (!launcherPlayer || !launcherDay) return;
+      try {
+        const key = 'birthday_adventure_players_v1';
+        const players = JSON.parse(localStorage.getItem(key) || '[]');
+        let player = players.find(p => p.name === launcherPlayer);
+        if (!player) {
+          player = { name: launcherPlayer, stars: 0, streak: 0 };
+          players.push(player);
+        }
+        localStorage.setItem(key, JSON.stringify(players));
+      } catch (e) { }
+    };
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+  </script>
+
+</body>
+</html>

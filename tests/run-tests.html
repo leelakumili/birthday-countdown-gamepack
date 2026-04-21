@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unit Tests — Birthday Countdown Game Pack</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0d0d0d; color: #e0e0e0; padding: 24px; line-height: 1.6; }
+    h1 { color: #ff69b4; font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 28px; }
+    h2 { color: #88aaff; font-size: 1rem; margin: 28px 0 8px; border-bottom: 1px solid #222; padding-bottom: 4px; }
+    .result { padding: 3px 0; font-size: 0.9rem; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; }
+    .fail-detail { color: #f44336; font-size: 0.8rem; padding-left: 20px; opacity: 0.85; }
+    .summary { margin-top: 32px; padding: 14px 18px; border-radius: 8px; font-size: 1rem; font-weight: bold; }
+    .summary.ok  { background: #0f2e0f; color: #4caf50; border: 1px solid #2a5a2a; }
+    .summary.err { background: #2e0f0f; color: #f44336; border: 1px solid #5a2a2a; }
+    .note { margin-top: 16px; color: #666; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Unit Tests — Birthday Countdown Game Pack</h1>
+  <p class="subtitle">Open in a local server (not file://) · state-manager · unlock-engine · utils · game-bridge · sounds</p>
+  <p class="subtitle" style="margin-top:6px">Also see: <a href="theme-tests.html" style="color:#88aaff">Theme Tests →</a> (all 10 themes, schema &amp; progression validation)</p>
+  <div id="output"></div>
+
+  <!--
+    Load order mirrors the production load order in launcher/index.html.
+    state-manager.js runs a one-time migration IIFE on load; that is an
+    intentional side effect and is not re-testable per-case. All public
+    API methods (load, save, saveBestScore, getBestScore) are tested below.
+  -->
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/utils.js"></script>
+  <script src="../engine/state-manager.js"></script>
+  <script src="../engine/unlock-engine.js"></script>
+  <script src="../engine/game-bridge.js"></script>
+  <script src="../engine/sounds.js"></script>
+
+  <script>
+    // ── Minimal test framework ────────────────────────────────────────────────
+
+    var _results   = [];
+    var _suite     = "";
+    var STATE_KEY  = "birthday_adventure_state_v2";
+    var OLD_KEY    = "panda_adventure_state_v2";
+    var BRIDGE_KEY = "birthday_adventure_just_completed";
+    var OLD_BRIDGE_KEY = "panda_just_completed";
+
+    function suite(name) { _suite = name; }
+
+    function assert(cond, msg) {
+      if (!cond) throw new Error(msg || "assertion failed");
+    }
+
+    /** Clears the two localStorage keys touched by state-manager between tests. */
+    function resetStorage() {
+      localStorage.removeItem(STATE_KEY);
+      localStorage.removeItem(OLD_KEY);
+    }
+
+    function t(name, fn) {
+      resetStorage();
+      try {
+        fn();
+        _results.push({ suite: _suite, name: name, ok: true });
+      } catch (e) {
+        _results.push({ suite: _suite, name: name, ok: false, err: e.message });
+      }
+    }
+
+    // ── Shared fixtures ───────────────────────────────────────────────────────
+
+    var mockConfig = {
+      playerName: "TestKid",
+      days: [
+        { id: "day1", dayNumber: 1 },
+        { id: "day2", dayNumber: 2 },
+        { id: "day3", dayNumber: 3 }
+      ]
+    };
+
+    // birthdayDate = 2026-05-26, totalDays = 10
+    // Day 1 starts 9 days before: 2026-05-17
+    // Day N starts (10-N) days before the birthday
+    var unlockConfig = {
+      birthdayDate: "2026-05-26",
+      totalDays: 10
+    };
+
+    function override(date) {
+      return Object.assign({}, unlockConfig, { todayOverride: date });
+    }
+
+    // ── state-manager: load() ─────────────────────────────────────────────────
+
+    suite("state-manager › load()");
+
+    t("returns empty state when nothing is saved", function () {
+      var s = App.State.load(mockConfig);
+      assert(s.playerName        === "TestKid", "playerName from config");
+      assert(s.streak            === 0,         "streak starts at 0");
+      assert(s.lastCompletedDay  === 0,         "lastCompletedDay starts at 0");
+      assert(s.lastUnlockedDay   === 1,         "lastUnlockedDay starts at 1");
+      assert(s.progress.day1     === false,     "day1 false");
+      assert(s.progress.day2     === false,     "day2 false");
+      assert(s.progress.day3     === false,     "day3 false");
+    });
+
+    t("restores saved progress, name, and streak from localStorage", function () {
+      var saved = {
+        playerName: "Hero",
+        progress: { day1: true, day2: false, day3: true },
+        streak: 2,
+        lastCompletedDay: 3,
+        lastUnlockedDay: 4
+      };
+      localStorage.setItem(STATE_KEY, JSON.stringify(saved));
+      var s = App.State.load(mockConfig);
+      assert(s.playerName       === "Hero", "playerName restored");
+      assert(s.progress.day1    === true,   "day1 completed");
+      assert(s.progress.day2    === false,  "day2 not completed");
+      assert(s.progress.day3    === true,   "day3 completed");
+      assert(s.streak           === 2,      "streak restored");
+      assert(s.lastCompletedDay === 3,      "lastCompletedDay restored");
+      assert(s.lastUnlockedDay  === 4,      "lastUnlockedDay restored");
+    });
+
+    t("falls back to base state on corrupt JSON", function () {
+      localStorage.setItem(STATE_KEY, "NOT{VALID}JSON");
+      var s = App.State.load(mockConfig);
+      assert(s.playerName === "TestKid", "config playerName used");
+      assert(s.streak     === 0,         "streak reset to 0");
+    });
+
+    t("excludes saved days that are not present in current config", function () {
+      var saved = {
+        progress: { day1: true, day2: true, day99: true },
+        streak: 1, lastCompletedDay: 1, lastUnlockedDay: 2
+      };
+      localStorage.setItem(STATE_KEY, JSON.stringify(saved));
+      var s = App.State.load(mockConfig);
+      assert(!Object.prototype.hasOwnProperty.call(s.progress, "day99"),
+             "day99 excluded (not in config)");
+      assert(s.progress.day1 === true, "day1 still present");
+    });
+
+    t("coerces non-numeric streak to 0", function () {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        progress: {}, streak: "bad", lastCompletedDay: 0, lastUnlockedDay: 1
+      }));
+      assert(App.State.load(mockConfig).streak === 0, "invalid streak → 0");
+    });
+
+    t("coerces null lastCompletedDay to 0", function () {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        progress: {}, streak: 0, lastCompletedDay: null, lastUnlockedDay: 1
+      }));
+      assert(App.State.load(mockConfig).lastCompletedDay === 0,
+             "null lastCompletedDay → 0");
+    });
+
+    t("coerces null lastUnlockedDay to 1", function () {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        progress: {}, streak: 0, lastCompletedDay: 0, lastUnlockedDay: null
+      }));
+      assert(App.State.load(mockConfig).lastUnlockedDay === 1,
+             "null lastUnlockedDay → 1");
+    });
+
+    // ── state-manager: save() ─────────────────────────────────────────────────
+
+    suite("state-manager › save()");
+
+    t("persists state to localStorage", function () {
+      var s = { playerName: "Tester", progress: { day1: true }, streak: 3,
+                lastCompletedDay: 1, lastUnlockedDay: 2 };
+      App.State.save(s);
+      var raw = localStorage.getItem(STATE_KEY);
+      assert(raw !== null, "item written");
+      var parsed = JSON.parse(raw);
+      assert(parsed.playerName === "Tester", "playerName round-trips");
+      assert(parsed.streak     === 3,        "streak round-trips");
+    });
+
+    t("round-trips bestScores", function () {
+      var s = { playerName: "X", progress: {}, streak: 0,
+                lastCompletedDay: 0, lastUnlockedDay: 1,
+                bestScores: { day1: 999 } };
+      App.State.save(s);
+      var parsed = JSON.parse(localStorage.getItem(STATE_KEY));
+      assert(parsed.bestScores.day1 === 999, "bestScores round-trips");
+    });
+
+    t("calls onSaveError when localStorage throws", function () {
+      var called = false;
+      var prev   = App.State.onSaveError;
+      App.State.onSaveError = function () { called = true; };
+
+      var origSet = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function (k, v) {
+        if (k === STATE_KEY) throw new Error("QuotaExceededError");
+        origSet(k, v);
+      };
+
+      App.State.save({ playerName: "X", progress: {}, streak: 0 });
+
+      localStorage.setItem = origSet;
+      App.State.onSaveError = prev;
+      assert(called, "onSaveError invoked");
+    });
+
+    t("does not throw when onSaveError is null and storage fails", function () {
+      var prev = App.State.onSaveError;
+      App.State.onSaveError = null;
+
+      var origSet = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function (k) {
+        if (k === STATE_KEY) throw new Error("QuotaExceededError");
+        origSet.apply(localStorage, arguments);
+      };
+
+      var threw = false;
+      try { App.State.save({ playerName: "X", progress: {}, streak: 0 }); }
+      catch (e) { threw = true; }
+
+      localStorage.setItem = origSet;
+      App.State.onSaveError = prev;
+      assert(!threw, "no uncaught exception");
+    });
+
+    // ── state-manager: saveBestScore() ────────────────────────────────────────
+
+    suite("state-manager › saveBestScore()");
+
+    t("creates bestScores object when absent and saves first score", function () {
+      var s = {};
+      App.State.saveBestScore(s, "day1", 100);
+      assert(s.bestScores && s.bestScores.day1 === 100, "score saved");
+    });
+
+    t("returns true for a new high score", function () {
+      assert(App.State.saveBestScore({}, "day1", 100) === true,
+             "true for first record");
+    });
+
+    t("overwrites with higher score and returns true", function () {
+      var s = { bestScores: { day1: 50 } };
+      var isNew = App.State.saveBestScore(s, "day1", 200);
+      assert(isNew === true,          "returns true");
+      assert(s.bestScores.day1 === 200, "score updated");
+    });
+
+    t("keeps higher score when new score is lower, returns false", function () {
+      var s = { bestScores: { day1: 500 } };
+      var isNew = App.State.saveBestScore(s, "day1", 50);
+      assert(isNew === false,           "returns false");
+      assert(s.bestScores.day1 === 500, "original kept");
+    });
+
+    t("tracks scores per game independently", function () {
+      var s = {};
+      App.State.saveBestScore(s, "day1", 100);
+      App.State.saveBestScore(s, "day2", 200);
+      assert(s.bestScores.day1 === 100, "day1 score correct");
+      assert(s.bestScores.day2 === 200, "day2 score correct");
+    });
+
+    // ── state-manager: getBestScore() ─────────────────────────────────────────
+
+    suite("state-manager › getBestScore()");
+
+    t("returns the stored score for a known game", function () {
+      assert(App.State.getBestScore({ bestScores: { day1: 42 } }, "day1") === 42,
+             "returns 42");
+    });
+
+    t("returns 0 for a game with no recorded score", function () {
+      assert(App.State.getBestScore({ bestScores: {} }, "day99") === 0,
+             "unknown game → 0");
+    });
+
+    t("returns 0 when bestScores object is missing entirely", function () {
+      assert(App.State.getBestScore({}, "day1") === 0,
+             "no bestScores → 0");
+    });
+
+    // ── unlock-engine: parseDate() ────────────────────────────────────────────
+
+    suite("unlock-engine › parseDate()");
+
+    t("parses ISO date to UTC midnight", function () {
+      var d = App.Unlock.parseDate("2026-05-26");
+      assert(d.getUTCFullYear() === 2026, "year correct");
+      assert(d.getUTCMonth()    === 4,    "month correct (0-indexed May)");
+      assert(d.getUTCDate()     === 26,   "day correct");
+      assert(d.getUTCHours()    === 0,    "UTC midnight");
+    });
+
+    t("handles January month boundary (month index 0)", function () {
+      var d = App.Unlock.parseDate("2026-01-01");
+      assert(d.getUTCMonth() === 0, "January = 0");
+      assert(d.getUTCDate()  === 1, "day = 1");
+    });
+
+    t("handles December month boundary (month index 11)", function () {
+      var d = App.Unlock.parseDate("2025-12-31");
+      assert(d.getUTCMonth() === 11, "December = 11");
+      assert(d.getUTCDate()  === 31, "day = 31");
+    });
+
+    // ── unlock-engine: getTodayDayNumber() ────────────────────────────────────
+    //
+    // Birthday: 2026-05-26, totalDays: 10
+    // Day N unlocks (10 - N) days before the birthday:
+    //   Day  1 → 2026-05-17  (9 days before)
+    //   Day  5 → 2026-05-21  (5 days before)
+    //   Day 10 → 2026-05-26  (birthday itself)
+
+    suite("unlock-engine › getTodayDayNumber()");
+
+    t("returns 1 when today is exactly 9 days before birthday", function () {
+      assert(App.Unlock.getTodayDayNumber(override("2026-05-17")) === 1,
+             "day 1 on 2026-05-17");
+    });
+
+    t("returns 5 when today is 5 days before birthday", function () {
+      assert(App.Unlock.getTodayDayNumber(override("2026-05-21")) === 5,
+             "day 5 on 2026-05-21");
+    });
+
+    t("returns 9 when today is 1 day before birthday", function () {
+      assert(App.Unlock.getTodayDayNumber(override("2026-05-25")) === 9,
+             "day 9 on 2026-05-25");
+    });
+
+    t("returns totalDays (10) on the birthday itself", function () {
+      assert(App.Unlock.getTodayDayNumber(override("2026-05-26")) === 10,
+             "day 10 on birthday");
+    });
+
+    t("caps at totalDays when today is after the birthday", function () {
+      assert(App.Unlock.getTodayDayNumber(override("2026-06-15")) === 10,
+             "post-birthday caps at 10");
+    });
+
+    t("returns value less than 1 when before the countdown window", function () {
+      // 2026-04-01 is 55 days before birthday; todayDay = 10 - 55 = -45
+      var d = App.Unlock.getTodayDayNumber(override("2026-04-01"));
+      assert(d < 1, "far-before returns < 1 (no games unlocked)");
+    });
+
+    t("returns 0 when exactly 10 days before birthday (day 0, not yet started)", function () {
+      // 10 days before = 2026-05-16; diffDays=10; todayDay = 10-10 = 0
+      assert(App.Unlock.getTodayDayNumber(override("2026-05-16")) === 0,
+             "10 days before → day 0");
+    });
+
+    // ── unlock-engine: isDayUnlocked() ────────────────────────────────────────
+
+    suite("unlock-engine › isDayUnlocked()");
+
+    t("unlocks a past day (dayNumber < todayDay)", function () {
+      assert(App.Unlock.isDayUnlocked(3, 5) === true,
+             "day 3 unlocked when today is day 5");
+    });
+
+    t("unlocks today's day (dayNumber === todayDay)", function () {
+      assert(App.Unlock.isDayUnlocked(5, 5) === true,
+             "today's day is unlocked");
+    });
+
+    t("locks a future day (dayNumber > todayDay)", function () {
+      assert(App.Unlock.isDayUnlocked(5, 3) === false,
+             "day 5 locked when today is day 3");
+    });
+
+    t("locks day 1 when todayDay is 0 (countdown not yet started)", function () {
+      assert(App.Unlock.isDayUnlocked(1, 0) === false,
+             "day 1 locked when todayDay = 0");
+    });
+
+    t("locks all days when todayDay is negative", function () {
+      assert(App.Unlock.isDayUnlocked(1, -5) === false,
+             "locked when todayDay < 0");
+    });
+
+    t("locks day 10 even when day 9 is reached", function () {
+      assert(App.Unlock.isDayUnlocked(10, 9) === false,
+             "last day stays locked until its own day");
+    });
+
+    // ── unlock-engine: updateProgress() ──────────────────────────────────────
+
+    suite("unlock-engine › updateProgress()");
+
+    t("marks the completed day as true in progress map", function () {
+      var s = { progress: { day1: false }, streak: 0, lastCompletedDay: 0, lastUnlockedDay: 1 };
+      App.Unlock.updateProgress(s, "day1", 1);
+      assert(s.progress.day1 === true, "progress.day1 is true");
+    });
+
+    t("increments streak on first completion of a day", function () {
+      var s = { progress: { day1: false }, streak: 2, lastCompletedDay: 0, lastUnlockedDay: 1 };
+      App.Unlock.updateProgress(s, "day1", 1);
+      assert(s.streak === 3, "streak incremented from 2 to 3");
+    });
+
+    t("does not increment streak when replaying an already-completed day", function () {
+      var s = { progress: { day1: true }, streak: 3, lastCompletedDay: 1, lastUnlockedDay: 2 };
+      App.Unlock.updateProgress(s, "day1", 1);
+      assert(s.streak === 3, "streak unchanged on replay");
+    });
+
+    t("updates lastCompletedDay when completing a later day", function () {
+      var s = { progress: { day3: false }, streak: 2, lastCompletedDay: 2, lastUnlockedDay: 3 };
+      App.Unlock.updateProgress(s, "day3", 3);
+      assert(s.lastCompletedDay === 3, "lastCompletedDay advances to 3");
+    });
+
+    t("does not decrease lastCompletedDay when replaying an earlier day", function () {
+      var s = { progress: { day1: false }, streak: 5, lastCompletedDay: 5, lastUnlockedDay: 6 };
+      App.Unlock.updateProgress(s, "day1", 1);
+      assert(s.lastCompletedDay === 5, "lastCompletedDay stays at 5");
+    });
+
+    t("advances lastUnlockedDay to dayNumber + 1", function () {
+      var s = { progress: { day3: false }, streak: 2, lastCompletedDay: 2, lastUnlockedDay: 3 };
+      App.Unlock.updateProgress(s, "day3", 3);
+      assert(s.lastUnlockedDay === 4, "day 4 now unlocked");
+    });
+
+    t("does not decrease lastUnlockedDay when replaying an earlier day", function () {
+      var s = { progress: { day1: false }, streak: 5, lastCompletedDay: 5, lastUnlockedDay: 8 };
+      App.Unlock.updateProgress(s, "day1", 1);
+      assert(s.lastUnlockedDay === 8, "lastUnlockedDay stays at 8");
+    });
+
+    t("completing day 10 sets lastUnlockedDay to 11 (past the end, safe)", function () {
+      var s = { progress: { day10: false }, streak: 9, lastCompletedDay: 9, lastUnlockedDay: 10 };
+      App.Unlock.updateProgress(s, "day10", 10);
+      assert(s.lastUnlockedDay === 11, "lastUnlockedDay = 11 after final day");
+    });
+
+    // ── App.Utils.escapeHtml() ────────────────────────────────────────────────
+
+    suite("App.Utils.escapeHtml()");
+
+    t("escapes & to &amp;", function () {
+      assert(App.Utils.escapeHtml("a&b") === "a&amp;b", "& not escaped");
+    });
+
+    t("escapes < to &lt;", function () {
+      assert(App.Utils.escapeHtml("<div>") === "&lt;div&gt;", "< not escaped");
+    });
+
+    t("escapes > to &gt;", function () {
+      assert(App.Utils.escapeHtml(">") === "&gt;", "> not escaped");
+    });
+
+    t("escapes \" to &quot;", function () {
+      assert(App.Utils.escapeHtml('"hi"') === '&quot;hi&quot;', "\" not escaped");
+    });
+
+    t("escapes ' to &#39;", function () {
+      assert(App.Utils.escapeHtml("it's") === "it&#39;s", "' not escaped");
+    });
+
+    t("escapes ` to &#96;", function () {
+      assert(App.Utils.escapeHtml("`") === "&#96;", "` not escaped");
+    });
+
+    t("leaves plain text unchanged", function () {
+      assert(App.Utils.escapeHtml("hello world") === "hello world", "plain text mutated");
+    });
+
+    t("coerces non-string to string before escaping", function () {
+      assert(App.Utils.escapeHtml(42) === "42", "number not coerced");
+    });
+
+    t("escapes a full script tag", function () {
+      var r = App.Utils.escapeHtml('<script>alert(1)</script>');
+      assert(r.indexOf('<') === -1 && r.indexOf('>') === -1, "tags not fully escaped");
+    });
+
+    // ── App.Utils.sanitizePlayerName() ────────────────────────────────────────
+
+    suite("App.Utils.sanitizePlayerName()");
+
+    t("returns empty string for null", function () {
+      assert(App.Utils.sanitizePlayerName(null) === "", "null → ''");
+    });
+
+    t("returns empty string for undefined", function () {
+      assert(App.Utils.sanitizePlayerName(undefined) === "", "undefined → ''");
+    });
+
+    t("passes through a valid short name unchanged", function () {
+      assert(App.Utils.sanitizePlayerName("Liora") === "Liora", "valid name mutated");
+    });
+
+    t("trims leading and trailing whitespace", function () {
+      assert(App.Utils.sanitizePlayerName("  Liora  ") === "Liora", "whitespace not trimmed");
+    });
+
+    t("collapses internal whitespace to a single space", function () {
+      assert(App.Utils.sanitizePlayerName("A   B") === "A B", "whitespace not collapsed");
+    });
+
+    t("truncates at MAX_PLAYER_NAME_LEN (20 chars)", function () {
+      var long = "A".repeat(30);
+      var result = App.Utils.sanitizePlayerName(long);
+      assert(result.length === App.Utils.MAX_PLAYER_NAME_LEN,
+             "length " + result.length + " expected " + App.Utils.MAX_PLAYER_NAME_LEN);
+    });
+
+    t("returns empty string for a whitespace-only string", function () {
+      assert(App.Utils.sanitizePlayerName("   ") === "", "whitespace-only not rejected");
+    });
+
+    t("coerces number to string before sanitizing", function () {
+      assert(App.Utils.sanitizePlayerName(42) === "42", "number not coerced");
+    });
+
+    // ── App.Utils.sanitizeInstructionHtml() ──────────────────────────────────
+
+    suite("App.Utils.sanitizeInstructionHtml()");
+
+    t("returns empty string for null input", function () {
+      assert(App.Utils.sanitizeInstructionHtml(null) === "", "null → not empty");
+    });
+
+    t("returns empty string for undefined input", function () {
+      assert(App.Utils.sanitizeInstructionHtml(undefined) === "", "undefined → not empty");
+    });
+
+    t("preserves allowed tags: <b>, <strong>, <i>, <em>, <u>", function () {
+      var html = "<b>bold</b> <strong>strong</strong> <i>italic</i>";
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("<b>") !== -1, "<b> stripped");
+      assert(result.indexOf("<strong>") !== -1, "<strong> stripped");
+      assert(result.indexOf("<i>") !== -1, "<i> stripped");
+    });
+
+    t("preserves allowed tags: <br>, <span>, <ul>, <ol>, <li>", function () {
+      var html = "<br><span>x</span><ul><li>a</li></ul>";
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("span") !== -1, "<span> stripped");
+      assert(result.indexOf("<ul>") !== -1, "<ul> stripped");
+      assert(result.indexOf("<li>") !== -1, "<li> stripped");
+    });
+
+    t("strips <script> tags entirely", function () {
+      var html = '<b>ok</b><script>alert(1)<\/script>';
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.toLowerCase().indexOf("script") === -1, "<script> not stripped");
+      assert(result.indexOf("alert") === -1, "script content not stripped");
+    });
+
+    t("strips unknown tags like <blink> but preserves their text", function () {
+      var html = "<blink>hello</blink>";
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("<blink>") === -1, "<blink> not stripped");
+      assert(result.indexOf("hello") !== -1, "text content lost");
+    });
+
+    t("strips event-handler attributes (onclick, onerror) from allowed tags", function () {
+      var html = '<b onclick="evil()">text</b>';
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("onclick") === -1, "onclick not stripped");
+      assert(result.indexOf("text") !== -1, "text content lost");
+    });
+
+    t("preserves style and class attributes on allowed tags", function () {
+      var html = '<span style="color:red" class="highlight">hi</span>';
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("style") !== -1, "style attr stripped");
+      assert(result.indexOf("class") !== -1, "class attr stripped");
+    });
+
+    t("strips data-* attributes from allowed tags", function () {
+      var html = '<b data-x="secret">text</b>';
+      var result = App.Utils.sanitizeInstructionHtml(html);
+      assert(result.indexOf("data-x") === -1, "data-x not stripped");
+    });
+
+    t("preserves plain text nodes unchanged", function () {
+      var result = App.Utils.sanitizeInstructionHtml("hello world");
+      assert(result === "hello world", "plain text mutated");
+    });
+
+    // ── App.Bridge.sendComplete() ─────────────────────────────────────────────
+
+    suite("App.Bridge.sendComplete()");
+
+    t("writes a GAME_COMPLETE payload to localStorage under the correct key", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      App.Bridge._navigate = function () {};
+      App.Bridge.sendComplete({ gameId: "day1", score: 100, level: 5 });
+      var raw = localStorage.getItem(BRIDGE_KEY);
+      assert(raw !== null, "nothing written to localStorage");
+      var parsed = JSON.parse(raw);
+      assert(parsed.type === "GAME_COMPLETE", "type not set to GAME_COMPLETE");
+      assert(parsed.gameId === "day1", "gameId not preserved");
+      assert(parsed.score === 100, "score not preserved");
+      localStorage.removeItem(BRIDGE_KEY);
+    });
+
+    t("sets payload.type to GAME_COMPLETE even if not provided", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      App.Bridge._navigate = function () {};
+      App.Bridge.sendComplete({ gameId: "day2", score: 50, level: 1 });
+      var parsed = JSON.parse(localStorage.getItem(BRIDGE_KEY));
+      assert(parsed.type === "GAME_COMPLETE", "type missing");
+      localStorage.removeItem(BRIDGE_KEY);
+    });
+
+    t("calls _navigate with the launcher URL", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      var navigatedTo = null;
+      App.Bridge._navigate = function (url) { navigatedTo = url; };
+      App.Bridge.sendComplete({ gameId: "day1", score: 0, level: 1 });
+      assert(navigatedTo !== null, "_navigate was not called");
+      assert(navigatedTo.indexOf("launcher") !== -1, "URL does not point to launcher");
+      localStorage.removeItem(BRIDGE_KEY);
+    });
+
+    // ── App.Bridge.listen() ───────────────────────────────────────────────────
+
+    suite("App.Bridge.listen()");
+
+    t("calls onComplete immediately when a payload is in localStorage", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      var payload = JSON.stringify({ type: "GAME_COMPLETE", gameId: "day3", score: 99, level: 3 });
+      localStorage.setItem(BRIDGE_KEY, payload);
+      var received = null;
+      App.Bridge.listen(function (p) { received = p; });
+      assert(received !== null, "onComplete not called");
+      assert(received.gameId === "day3", "gameId wrong: " + (received && received.gameId));
+      assert(received.score === 99, "score wrong");
+    });
+
+    t("removes the localStorage key after reading it", function () {
+      localStorage.setItem(BRIDGE_KEY, JSON.stringify({ type: "GAME_COMPLETE", gameId: "day4", score: 1, level: 1 }));
+      App.Bridge.listen(function () {});
+      assert(localStorage.getItem(BRIDGE_KEY) === null, "BRIDGE_KEY not cleared after listen");
+    });
+
+    t("does not call onComplete when localStorage is empty", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      var called = false;
+      App.Bridge.listen(function () { called = true; });
+      assert(!called, "onComplete called spuriously");
+    });
+
+    t("does not call onComplete for malformed JSON in localStorage", function () {
+      localStorage.setItem(BRIDGE_KEY, "NOT_JSON");
+      var called = false;
+      App.Bridge.listen(function () { called = true; });
+      assert(!called, "onComplete called for malformed JSON");
+      localStorage.removeItem(BRIDGE_KEY);
+    });
+
+    t("does not call onComplete for a payload with wrong type", function () {
+      localStorage.setItem(BRIDGE_KEY, JSON.stringify({ type: "SOMETHING_ELSE", gameId: "day1" }));
+      var called = false;
+      App.Bridge.listen(function () { called = true; });
+      assert(!called, "onComplete called for wrong type");
+      localStorage.removeItem(BRIDGE_KEY);
+    });
+
+    t("reads and clears old key as migration fallback", function () {
+      localStorage.removeItem(BRIDGE_KEY);
+      localStorage.setItem("panda_just_completed",
+        JSON.stringify({ type: "GAME_COMPLETE", gameId: "day1", score: 5, level: 1 }));
+      var received = null;
+      App.Bridge.listen(function (p) { received = p; });
+      assert(received !== null, "old key not read");
+      assert(received.gameId === "day1", "gameId wrong from old key");
+      assert(localStorage.getItem("panda_just_completed") === null, "old key not cleared");
+    });
+
+    // ── App.Sounds ────────────────────────────────────────────────────────────
+
+    suite("App.Sounds");
+
+    t("_muted starts as false", function () {
+      assert(App.Sounds._muted === false, "_muted initial value wrong");
+    });
+
+    t("_ctx starts as null (lazy init)", function () {
+      assert(App.Sounds._ctx === null, "_ctx should start null");
+    });
+
+    t("toggleMute() returns true on first call (now muted)", function () {
+      App.Sounds._muted = false;
+      assert(App.Sounds.toggleMute() === true, "first toggleMute should return true");
+    });
+
+    t("toggleMute() returns false on second call (now unmuted)", function () {
+      App.Sounds._muted = true;
+      assert(App.Sounds.toggleMute() === false, "second toggleMute should return false");
+    });
+
+    t("play() does not throw when muted and no AudioContext", function () {
+      App.Sounds._muted = true;
+      var threw = false;
+      try { App.Sounds.play("match"); } catch (e) { threw = true; }
+      assert(!threw, "play() threw while muted");
+      App.Sounds._muted = false;
+    });
+
+    t("play() does not throw for all known types when AudioContext unavailable", function () {
+      App.Sounds._muted = false;
+      var savedCtx = App.Sounds._ctx;
+      App.Sounds._ctx = null;
+      var types = ["match", "catch", "wrong", "levelUp", "gameOver", "unknown"];
+      var threw = false;
+      try {
+        types.forEach(function (type) { App.Sounds.play(type); });
+      } catch (e) { threw = true; }
+      App.Sounds._ctx = savedCtx;
+      assert(!threw, "play() threw without AudioContext");
+    });
+
+    t("playBirthdayJingle() does not throw when muted", function () {
+      App.Sounds._muted = true;
+      var threw = false;
+      try { App.Sounds.playBirthdayJingle(); } catch (e) { threw = true; }
+      assert(!threw, "playBirthdayJingle() threw while muted");
+      App.Sounds._muted = false;
+    });
+
+    t("init() does not throw if AudioContext is unavailable", function () {
+      var savedCtx = App.Sounds._ctx;
+      App.Sounds._ctx = null;
+      var savedAC = window.AudioContext;
+      var savedWAC = window.webkitAudioContext;
+      window.AudioContext = undefined;
+      window.webkitAudioContext = undefined;
+      var threw = false;
+      try { App.Sounds.init(); } catch (e) { threw = true; }
+      window.AudioContext = savedAC;
+      window.webkitAudioContext = savedWAC;
+      App.Sounds._ctx = savedCtx;
+      assert(!threw, "init() threw without AudioContext");
+    });
+
+    // ── Render results ────────────────────────────────────────────────────────
+
+    (function () {
+      var out  = document.getElementById("output");
+      var pass = 0, fail = 0;
+      var lastSuite = "";
+
+      for (var i = 0; i < _results.length; i++) {
+        var r = _results[i];
+
+        if (r.suite !== lastSuite) {
+          lastSuite = r.suite;
+          var h = document.createElement("h2");
+          h.textContent = r.suite;
+          out.appendChild(h);
+        }
+
+        var row = document.createElement("div");
+        row.className = "result " + (r.ok ? "pass" : "fail");
+        row.textContent = (r.ok ? "✓ " : "✗ ") + r.name;
+        out.appendChild(row);
+
+        if (!r.ok) {
+          var detail = document.createElement("div");
+          detail.className = "fail-detail";
+          detail.textContent = r.err;
+          out.appendChild(detail);
+        }
+
+        if (r.ok) pass++; else fail++;
+      }
+
+      var summary = document.createElement("div");
+      summary.className = "summary " + (fail === 0 ? "ok" : "err");
+      summary.textContent = pass + " passed · " + fail + " failed · " +
+                            (pass + fail) + " total";
+      out.appendChild(summary);
+
+      var note = document.createElement("p");
+      note.className = "note";
+      note.textContent =
+        "Note: state-manager.js runs a one-time localStorage migration on script " +
+        "load (IIFE). That side effect is intentional and is not re-tested per-case. " +
+        "App.Sounds tests skip Web Audio playback (hardware-dependent); init/mute/toggle paths are covered.";
+      out.appendChild(note);
+    })();
+  </script>
+</body>
+</html>

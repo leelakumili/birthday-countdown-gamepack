@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Birthday Adventure Game Pack</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="../manifest.json" />
+
+  <!-- Theme color -->
+  <meta name="theme-color" content="#ff69b4" />
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BdayGames" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png" />
+
+  <!-- Register service worker from launcher (start_url target) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('../sw.js', { scope: '../' })
+        .catch(function (err) { console.warn('[SW] Registration failed:', err); });
+    }
+    // Capture install prompt for the custom install button
+    window.__pwaInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__pwaInstallPrompt = e;
+      var btn = document.getElementById('installPwaBtn');
+      if (btn) btn.hidden = false;
+    });
+    window.addEventListener('appinstalled', function () {
+      var btn = document.getElementById('installPwaBtn');
+      if (btn) btn.hidden = true;
+      window.__pwaInstallPrompt = null;
+    });
+  </script>
+
+  <!-- Self-hosted fonts (see CREDITS.md) -->
+  <link href="../assets/fonts/fonts.css" rel="stylesheet" />
+
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+  <main class="pa-page" role="main">
+    <section class="hero">
+      <div class="hero-badge" id="heroMascot" aria-hidden="true">🎮</div>
+      <h1 id="appTitle" style="margin-bottom: 12px;">Panda Adventure</h1>
+      <div class="hero-tag" id="countdownLabel" style="margin-bottom: 6px;">BIRTHDAY COUNTDOWN FOR</div>
+      <div id="kidNameHeader" style="font-family: 'Fredoka One', cursive; font-size: 2.2rem; color: var(--yellow); margin-bottom: 24px; text-shadow: 0 2px 8px rgba(0,0,0,0.4); ">Your Child Name</div>
+      <div class="countdown-row" aria-label="Day countdown">
+        <div class="cd-box"><div class="cd-value" id="cdDays">0</div><div class="cd-label">DAYS</div></div>
+        <div class="cd-box"><div class="cd-value" id="cdHours">0</div><div class="cd-label">HRS</div></div>
+        <div class="cd-box"><div class="cd-value" id="cdMinutes">0</div><div class="cd-label">MIN</div></div>
+        <div class="cd-box"><div class="cd-value" id="cdSeconds">0</div><div class="cd-label">SEC</div></div>
+      </div>
+    </section>
+
+    <section class="pa-card profile-card">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="avatar" id="profileAvatar">A</div>
+        <div>
+          <div class="profile-name" id="profileName">Explorer</div>
+          <div class="profile-sub" id="profileSub">0 stars 🌟</div>
+        </div>
+      </div>
+      <button class="pa-btn pa-btn-ghost" id="switchPlayerBtn" aria-label="Switch player">Switch</button>
+    </section>
+
+
+
+    <!-- PWA install banner (hidden until browser fires beforeinstallprompt) -->
+    <section id="installBanner" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:linear-gradient(135deg,#2d1b69,#1a0a2e); border:2px solid #ff69b4; border-radius:18px; padding:14px 18px; margin:0 0 12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:28px;">📲</span>
+        <div>
+          <div style="font-weight:800; font-size:0.95rem; color:#fff;">Install App</div>
+          <div style="font-size:0.78rem; color:#ccc;">Play offline, anytime!</div>
+        </div>
+      </div>
+      <button id="installPwaBtn" hidden
+        style="background:#ff69b4; color:#fff; border:none; border-radius:12px; padding:10px 18px; font-size:0.9rem; font-weight:800; cursor:pointer; white-space:nowrap;"
+        onclick="(function(){
+          if(window.__pwaInstallPrompt){
+            window.__pwaInstallPrompt.prompt();
+            window.__pwaInstallPrompt.userChoice.then(function(r){
+              if(r.outcome==='accepted'){
+                document.getElementById('installBanner').style.display='none';
+              }
+              window.__pwaInstallPrompt=null;
+            });
+          }
+        })()">
+        Add to Home Screen
+      </button>
+    </section>
+    <script>
+      // Show banner only when install button becomes visible
+      (function () {
+        var banner = document.getElementById('installBanner');
+        var btn = document.getElementById('installPwaBtn');
+        if (banner && btn) {
+          // Hide banner by default; show it when the button becomes visible
+          banner.style.display = 'none';
+          var orig = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'hidden');
+          // Poll quickly after page load to sync banner visibility with button
+          var sync = function () { banner.style.display = btn.hidden ? 'none' : 'flex'; };
+          window.addEventListener('beforeinstallprompt', sync);
+          window.addEventListener('appinstalled', sync);
+        }
+      })();
+    </script>
+
+    <section class="pa-card today-card">
+      <div class="today-day" id="todayLabel">TODAY'S GAME</div>
+      <div class="today-title" id="todayTitle" aria-live="polite">Loading...</div>
+      <div class="today-desc" id="todayDescription"></div>
+      <div id="todayGame"></div>
+    </section>
+
+    <section class="pa-card">
+      <h2 style="letter-spacing:1px; color: var(--muted);">ALL 10 DAYS</h2>
+      <div id="dayList" class="day-list"></div>
+    </section>
+
+
+  </main>
+
+  <div class="player-modal" id="playerModal">
+    <div class="player-panel">
+      <div style="text-align:center; font-size:70px;" id="playerModalMascot">🎮</div>
+      <h3 class="player-title">Who's playing?</h3>
+      <p class="player-sub">Select your name or add a new player.</p>
+      <div class="player-list" id="playerList"></div>
+      <div class="player-add-row">
+        <input id="newPlayerInput" class="player-input" type="text" placeholder="Enter name..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="New player name" />
+        <button id="addPlayerBtn" class="player-add-btn">Add</button>
+      </div>
+      <button id="startPlayerBtn" class="pa-btn pa-btn-primary player-go-btn">Let's Go! 🎮</button>
+    </div>
+  </div>
+
+  <div class="modal" id="completionModal" aria-hidden="true">
+    <div class="modal-panel">
+      <h3 id="modalTitle">You completed a day!</h3>
+      <p id="modalMessage">Great job!</p>
+      <div style="display:flex; gap: 8px; margin-top: 10px;">
+        <button id="revealClueBtn" class="pa-btn pa-btn-primary">Reveal Clue</button>
+        <button id="closeModalBtn" class="pa-btn pa-btn-ghost">Close</button>
+      </div>
+      <div id="clueReveal" class="clue-reveal"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="howToModal" aria-hidden="true">
+    <div class="modal-panel">
+      <h3 id="howToTitle" style="color: var(--accent-2, #3b82f6); font-family: 'Fredoka One', cursive; font-size: 1.8rem; margin-bottom: 12px;">How to Play</h3>
+      <div id="howToMessage" style="color: #eee; line-height: 1.6; font-size: 1.05rem; margin-bottom: 20px; text-align: left; background: var(--surface-2, #1e2d45); padding: 16px; border-radius: 12px; border: 2px solid var(--accent-2, #3b82f6);">Instructions go here.</div>
+      <button id="closeHowToBtn" class="pa-btn pa-btn-primary" style="width: 100%;">Got it! 🎮</button>
+    </div>
+  </div>
+
+  <script src="../engine/utils.js"></script>
+  <script src="../engine/config-loader.js"></script>
+  <script src="../engine/state-manager.js"></script>
+  <script src="../engine/unlock-engine.js"></script>
+  <script src="../engine/game-bridge.js"></script>
+  <script src="launcher.js"></script>
+</body>
+</html>

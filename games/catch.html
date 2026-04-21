@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Game</title>
+  <style>
+    @import url('../assets/fonts/fonts.css');
+
+    :root {
+      --green-dark: var(--surface, #111827);
+      --green-mid: var(--accent-2, #3b82f6);
+      --green-light: var(--muted, #9bb8d4);
+      --green-pale: var(--surface-2, #1e2d45);
+      --yellow: #ffd166;
+      --orange: #f4845f;
+      --red: #ef233c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg, #0a0e1a);
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: #222;
+    }
+
+    /* ── GAME BG ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        var(--stripe-texture);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ══════════════════════════════ SCREENS ══════════════════════════════ */
+    .screen {
+      display: none;
+      position: relative;
+      z-index: 1;
+    }
+
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* ══════════════════════════════ LEVEL SELECT ══════════════════════════════ */
+    #screen-levels {
+      padding: 2rem 1rem;
+      gap: 1.2rem;
+    }
+
+    .level-header {
+      text-align: center;
+    }
+
+    .game-name-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--green-light);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      padding: 3px 14px;
+      margin-bottom: 6px;
+    }
+
+    .level-header h2 {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.2rem;
+      color: #fff;
+      text-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .level-header p {
+      color: var(--green-light);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    .level-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    .level-btn {
+      aspect-ratio: 1;
+      border-radius: 16px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.5rem;
+      transition: transform .15s, box-shadow .15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .level-btn .lvl-num {
+      font-size: 1.6rem;
+      line-height: 1;
+    }
+
+    .level-btn .lvl-stars {
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+      min-height: 14px;
+    }
+
+    .level-btn.unlocked {
+      background: var(--yellow);
+      color: var(--green-dark);
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .level-btn.unlocked:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 7px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .level-btn.unlocked:active {
+      transform: translateY(1px);
+    }
+
+    .level-btn.completed {
+      background: var(--green-mid);
+      color: #fff;
+      box-shadow: 0 4px 0 var(--green-dark);
+    }
+
+    .level-btn.completed:hover {
+      transform: translateY(-3px);
+    }
+
+    .level-btn.locked {
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.3);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .level-btn.locked .lvl-num {
+      opacity: 0.4;
+    }
+
+    .lock-icon {
+      font-size: 1.2rem;
+    }
+
+    .level-actions {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 520px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-sm {
+      padding: 9px 22px;
+      border-radius: 50px;
+      border: none;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-reset {
+      background: var(--orange);
+      color: #fff;
+    }
+
+    .btn-reset:hover {
+      background: #e06040;
+    }
+
+    /* ══════════════════════════════ GAME SCREEN ══════════════════════════════ */
+    #screen-game {
+      padding: 0;
+      background: var(--bg, #1a2e1c);
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+    }
+
+    :root {
+      --game-max-width: min(92vw, 760px);
+    }
+
+    #game-hud {
+      width: 100%;
+      max-width: var(--game-max-width);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 10px 90px;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .hud-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hud-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .hud-value {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      color: #fff;
+    }
+
+    .hud-lives {
+      font-size: 1.1rem;
+      letter-spacing: 2px;
+    }
+
+    #game-canvas {
+      display: block;
+      max-width: var(--game-max-width);
+      width: 100%;
+      cursor: none;
+    }
+
+    #game-msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.2rem;
+      color: #fff;
+      text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    #game-msg.show {
+      opacity: 1;
+    }
+
+    /* ══════════════════════════════ OVERLAY ══════════════════════════════ */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.6);
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .overlay-card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.35);
+      animation: popIn .3s cubic-bezier(.175, .885, .32, 1.275);
+    }
+
+    @keyframes popIn {
+      from {
+        transform: scale(0.7);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .overlay-panda {
+      font-size: 3.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .overlay-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      color: var(--green-dark);
+      margin-bottom: 0.3rem;
+    }
+
+    .overlay-sub {
+      font-size: 0.95rem;
+      color: #666;
+      margin-bottom: 1.2rem;
+      line-height: 1.5;
+    }
+
+    .stars-display {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      letter-spacing: 4px;
+    }
+
+    .overlay-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 1.4rem;
+    }
+
+    .stat-box {
+      background: var(--green-pale);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .stat-box .s-label {
+      font-size: 0.72rem;
+      color: #888;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-box .s-val {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      color: var(--green-dark);
+    }
+
+    .overlay-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .btn-next {
+      background: var(--yellow);
+      color: var(--green-dark);
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.2rem;
+      padding: 12px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-next:hover {
+      background: #f0c030;
+    }
+
+    .btn-retry {
+      background: var(--green-pale);
+      color: var(--green-dark);
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 10px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-retry:hover {
+      background: var(--green-light);
+    }
+
+    .btn-menu {
+      background: #f0f0f0;
+      color: #888;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 9px;
+      border-radius: 14px;
+      border: none;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-menu:hover {
+      background: #e0e0e0;
+    }
+
+    /* ══════════════════════════════ CONFIRM DIALOG ══════════════════════════════ */
+    .confirm-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 1.8rem;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+      animation: popIn .25s ease;
+    }
+
+    .confirm-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      color: var(--text);
+      margin-bottom: 0.6rem;
+    }
+
+    .confirm-text {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 1.4rem;
+      line-height: 1.5;
+    }
+
+    .confirm-btns {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-confirm-yes {
+      flex: 1;
+      padding: 11px;
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-confirm-yes:hover {
+      background: #d01c30;
+    }
+
+    .btn-confirm-no {
+      flex: 1;
+      padding: 11px;
+      background: #f0f0f0;
+      color: #666;
+      border: none;
+      border-radius: 12px;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-confirm-no:hover {
+      background: #e0e0e0;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      z-index: 999;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    /* ── LAUNCHER TOP BAR ── */
+    #launcher-bar {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 9px 13px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+
+
+
+    .lb-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lb-av {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-2, #3b82f6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .lb-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .lb-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 5px 11px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: 'Nunito', sans-serif;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+
+    .lb-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── BACK TO LEVELS BUTTON IN HUD ── */
+    #hud-back-btn {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.85);
+      font-family: 'Nunito', sans-serif;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 5px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s;
+      z-index: 5;
+    }
+
+    #hud-back-btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  </style>
+  <!-- ── THEME SYSTEM ── -->
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  /* ── THEME SHORTCUTS ── all game scripts below use these globals:
+     window.__T  = activeTheme object
+     window.__TI = icons   { player, collect, enemy, life, hole }
+     window.__TC = canvas  { bgFill, collectFill, enemyFill, ... }
+     window.__TS = strings { retryBtn, winBtn, resultsBtn, clueTemplate, ... }
+  */
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+
+<body>
+
+  <!-- ═══════════════ LANDING ═══════════════ -->
+
+  <div id="launcher-bar">
+    <div class="lb-left">
+      <div class="lb-av" id="lb-av">?</div>
+      <div class="lb-name" id="lb-name"></div>
+    </div>
+    <button class="lb-btn" onclick="goToLauncher()">🏠 Launcher</button>
+  </div>
+
+  <!-- ═══════════════ LEVEL SELECT ═══════════════ -->
+  <div id="screen-levels" class="screen active">
+    <div class="level-header">
+      <div class="game-name-tag" id="level-game-tag">Loading...</div>
+      <h2 id="levels-greeting">Choose a Level</h2>
+      <p id="levels-sub">Complete each level to unlock the next!</p>
+    </div>
+
+    <div class="level-grid" id="level-grid"></div>
+
+    <div class="level-actions">
+      <button class="btn-sm btn-reset" onclick="confirmReset()">🔄 Reset Progress</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════ GAME SCREEN ═══════════════ -->
+  <div id="screen-game" class="screen">
+    <div id="game-hud" style="position:relative;">
+      <button id="hud-back-btn" onclick="confirmQuitToLevels()">← Levels</button>
+      <div class="hud-item">
+        <span class="hud-label">Score</span>
+        <span class="hud-value" id="hud-score">0</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Target</span>
+        <span class="hud-value" id="hud-target">10</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Level</span>
+        <span class="hud-value" id="hud-level">1</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Lives</span>
+        <span class="hud-value hud-lives" id="hud-lives">❤️❤️❤️</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Time</span>
+        <span class="hud-value" id="hud-time">60</span>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;max-width:var(--game-max-width);">
+      <canvas id="game-canvas"></canvas>
+      <div id="game-msg"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ OVERLAYS ═══════════════ -->
+  <div id="overlay-levelcomplete" class="overlay">
+    <div class="overlay-card">
+      <div class="overlay-panda" id="ov-panda">🎮</div>
+      <div class="overlay-title" id="ov-title">Level Complete!</div>
+      <div class="stars-display" id="ov-stars">⭐⭐⭐</div>
+      <div class="overlay-sub" id="ov-sub">Amazing job!</div>
+      <div class="overlay-stats">
+        <div class="stat-box">
+          <div class="s-label">Score</div>
+          <div class="s-val" id="ov-score">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Best</div>
+          <div class="s-val" id="ov-best">0</div>
+        </div>
+      </div>
+      <div class="overlay-btns">
+        <button class="btn-next" id="ov-btn-next" onclick="nextLevel()">Next Level →</button>
+        <button class="btn-retry" onclick="retryLevel()">Play Again</button>
+        <button class="btn-menu" onclick="closeOverlays();showScreen('screen-levels')">📋 Level Select</button>
+        <button class="btn-menu" onclick="closeOverlays();goToLauncher()">🏠 Back to Launcher</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-gameover" class="overlay">
+    <div class="overlay-card">
+      <div class="overlay-panda">😢</div>
+      <div class="overlay-title">Oh no!</div>
+      <div class="overlay-sub" id="go-sub">Out of Energon! Try again!</div>
+      <div class="overlay-stats">
+        <div class="stat-box">
+          <div class="s-label">Score</div>
+          <div class="s-val" id="go-score">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="s-label">Target</div>
+          <div class="s-val" id="go-target">10</div>
+        </div>
+      </div>
+      <div class="overlay-btns">
+        <button class="btn-next" onclick="retryLevel()">Retry! 🔄</button>
+        <button class="btn-menu" onclick="closeOverlays();showScreen('screen-levels')">📋 Level Select</button>
+        <button class="btn-menu" onclick="closeOverlays();goToLauncher()">🏠 Back to Launcher</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-confirm" class="overlay">
+    <div class="confirm-card">
+      <div class="confirm-title" id="confirm-title">Are you sure?</div>
+      <div class="confirm-text" id="confirm-text">This cannot be undone.</div>
+      <div class="confirm-btns">
+        <button class="btn-confirm-no" onclick="closeConfirm()">Cancel</button>
+        <button class="btn-confirm-yes" id="confirm-yes-btn">Yes, do it</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ═══════════════════════════════ DATA ═══════════════════════════════
+    const STORAGE_KEY = 'birthday_catch_v2';
+    const OLD_STORAGE_KEY = 'pandacatch_v2';
+    const keys = {};
+
+    // Level config loaded from active theme (see engine/theme-manager.js)
+    const _t = window.__activeTheme || {};
+    const _tc = _t.canvas || {};
+    const _ti = _t.icons || {};
+    const COLLECT_ICON = _ti.collect || '🔋';
+    const ENEMY_ICON   = _ti.enemy   || '🛡️';
+    const PLAYER_ICON  = _ti.player  || '🤖';
+    const HOLE_ICON    = _ti.hole    || '⚙️';
+    const LEVEL_CONFIG = (_t.catchLevels || [
+      { num:1,target:12,time:60,speed:1.1,enemyChance:0.18,spawnRate:50 },
+      { num:2,target:18,time:60,speed:1.25,enemyChance:0.22,spawnRate:46 },
+      { num:3,target:25,time:65,speed:1.40,enemyChance:0.26,spawnRate:42 },
+      { num:4,target:32,time:65,speed:1.55,enemyChance:0.29,spawnRate:38 },
+      { num:5,target:40,time:70,speed:1.70,enemyChance:0.32,spawnRate:34 },
+      { num:6,target:48,time:70,speed:1.88,enemyChance:0.35,spawnRate:31 },
+      { num:7,target:57,time:70,speed:2.05,enemyChance:0.37,spawnRate:28 },
+      { num:8,target:66,time:75,speed:2.22,enemyChance:0.39,spawnRate:25 },
+      { num:9,target:76,time:75,speed:2.40,enemyChance:0.41,spawnRate:23 },
+      { num:10,target:88,time:80,speed:2.65,enemyChance:0.43,spawnRate:20 }
+    ]).map(function(l){ return { num:l.num, target:l.target, time:l.time, speed:l.speed, beeChance:l.enemyChance||l.beeChance||0.25, spawnRate:l.spawnRate||40 }; });
+
+    function loadData() {
+      try {
+        let old = localStorage.getItem(OLD_STORAGE_KEY);
+        let current = localStorage.getItem(STORAGE_KEY);
+        if (old && !current) {
+          localStorage.setItem(STORAGE_KEY, old);
+          current = old;
+        }
+        return JSON.parse(current) || { players: [], highScores: [] };
+      }
+      catch (e) { return { players: [], highScores: [] }; }
+    }
+    function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+
+    let appData = loadData();
+    let currentPlayer = null;
+    let currentLevel = 1;
+
+    // ═══════════════════════════════ SCREEN NAV ═══════════════════════════════
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      if (id === 'screen-levels') { renderLevels(); updateShell('Level Select'); }
+    }
+
+    // ═══════════════════════════════ LEVELS ═══════════════════════════════
+    function renderLevels() {
+      if (!currentPlayer) {
+        document.getElementById('levels-greeting').textContent = "Select a player first";
+        return;
+      }
+      document.getElementById('levels-greeting').textContent = currentPlayer.name + "'s Levels";
+      const _gt = document.getElementById('level-game-tag');
+      if (_gt && typeof gameName !== 'undefined' && gameName) _gt.textContent = gameName.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}]/gu, '').trim();
+      const maxLevel = currentPlayer.maxLevel || 1;
+      const grid = document.getElementById('level-grid');
+      grid.innerHTML = '';
+      LEVEL_CONFIG.forEach(cfg => {
+        const btn = document.createElement('button');
+        const stars = currentPlayer.levelStars[cfg.num] || 0;
+        const isCompleted = cfg.num < maxLevel || stars > 0;
+        const isUnlocked = cfg.num <= maxLevel;
+        btn.className = 'level-btn ' + (isCompleted ? 'completed' : isUnlocked ? 'unlocked' : 'locked');
+        if (isUnlocked) {
+          const starStr = stars > 0 ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
+          btn.innerHTML = `<span class="lvl-num">${cfg.num}</span><span class="lvl-stars">${starStr}</span>`;
+          btn.onclick = () => startLevel(cfg.num);
+        } else {
+          btn.innerHTML = `<span class="lvl-num">${cfg.num}</span><span class="lock-icon">🔒</span>`;
+        }
+        grid.appendChild(btn);
+      });
+    }
+
+    function confirmReset() {
+      if (!currentPlayer) return;
+      openConfirm(
+        'Reset ' + currentPlayer.name + '?',
+        'All levels will be locked (except Level 1) and progress will be cleared. High scores are kept.',
+        () => {
+          currentPlayer.maxLevel = 1;
+          currentPlayer.levelStars = {};
+          currentPlayer.levelBest = {};
+          const idx = appData.players.findIndex(p => p.name === currentPlayer.name);
+          if (idx >= 0) appData.players[idx] = currentPlayer;
+          saveData(appData);
+          renderLevels();
+          showToast('Progress reset! Starting fresh 🌱');
+        }
+      );
+    }
+
+    // ═══════════════════════════════ GAME ENGINE ═══════════════════════════════
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H;
+    let gameScore, gameLives, gameTime, running, raf;
+    let basket, items, particles, spawnTimer, frameCount;
+    let countdownTimer, levelCfg;
+
+    function resizeCanvas() {
+      const maxW = Math.min(760, Math.floor(window.innerWidth * 0.92));
+      canvas.width = maxW;
+      canvas.height = Math.round(maxW * 0.75);
+      W = canvas.width; H = canvas.height;
+      if (basket) basket.y = H - 44;
+    }
+
+    function startLevel(num) {
+      currentLevel = num;
+      levelCfg = LEVEL_CONFIG[num - 1];
+      resizeCanvas();
+      gameScore = 0; gameLives = 3;
+      gameTime = levelCfg.time;
+      items = []; particles = [];
+      Object.keys(keys).forEach(k => delete keys[k]);
+      spawnTimer = 0; frameCount = 0;
+      basket = { x: W / 2 - 40, y: H - 44, w: 80, h: 18 };
+      updateHUD();
+      updateShell('Level ' + num);
+      showScreen('screen-game');
+      running = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        if (!running) return;
+        gameTime--;
+        document.getElementById('hud-time').textContent = gameTime;
+        if (gameTime <= 0) endLevel(true);
+      }, 1000);
+      gameLoop();
+    }
+
+    function gameOver() {
+      running = false;
+      clearInterval(countdownTimer);
+      if (raf) cancelAnimationFrame(raf);
+      const TS = window.__TS || {};
+      document.getElementById('go-sub').textContent = TS.gameOverSub || "Out of lives! Try again!";
+      document.getElementById('go-score').textContent = Math.floor(gameScore);
+      document.getElementById('go-target').textContent = levelCfg.target;
+      document.getElementById('overlay-gameover').classList.add('active');
+    }
+
+    function updateHUD() {
+      document.getElementById('hud-score').textContent = gameScore;
+      document.getElementById('hud-target').textContent = levelCfg.target;
+      document.getElementById('hud-level').textContent = currentLevel;
+      document.getElementById('hud-lives').textContent = (window.__TI&&window.__TI.life||'❤️').repeat(Math.max(0, gameLives));
+      document.getElementById('hud-time').textContent = gameTime;
+    }
+
+    function spawnItem() {
+      const isBee = Math.random() < levelCfg.beeChance;
+      const x = 28 + Math.random() * (W - 56);
+      const spd = (1.6 + Math.random() * 1.2) * levelCfg.speed;
+      items.push({ x, y: -28, type: isBee ? 'bee' : 'bamboo', speed: spd, angle: 0, spin: (Math.random() - 0.5) * 0.07 });
+    }
+
+    function drawPlayer(x, y, s) {
+      s = s || 1;
+      const TI = window.__TI || {};
+      if (TI.player && !window.__activeTheme.useVectorGraphics) {
+        ctx.save(); ctx.translate(x, y);
+        ctx.font = (32 * s) + "px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(TI.player, 0, -5 * s);
+        ctx.restore();
+        return;
+      }
+      ctx.save(); ctx.translate(x, y);
+      // Robot head - silver box
+      ctx.fillStyle = _tc.playerLight || '#3b82f6';
+      ctx.beginPath(); ctx.roundRect(-13*s,-14*s,26*s,22*s,3*s); ctx.fill();
+      // Visor
+      ctx.fillStyle = _tc.playerAccent || '#f5c842';
+      ctx.beginPath(); ctx.roundRect(-9*s,-10*s,18*s,8*s,2*s); ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#0a0e1a';
+      ctx.beginPath(); ctx.arc(-5*s,-6*s,2.5*s,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(5*s,-6*s,2.5*s,0,Math.PI*2); ctx.fill();
+      // Antenna
+      ctx.fillStyle = _tc.playerAccent || '#f5c842';
+      ctx.beginPath(); ctx.arc(0,-17*s,3*s,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = _tc.playerBody || '#1e40af';
+      ctx.fillRect(-1.5*s,-17*s,3*s,5*s);
+      ctx.restore();
+    }
+
+    function drawCollect(x, y, angle) {
+      const TI = window.__TI || {};
+      if (TI.collect && !window.__activeTheme.useVectorGraphics) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+        ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(TI.collect, 0, 0);
+        ctx.restore();
+        return;
+      }
+      // Energon cube / themed collect item
+      ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+      ctx.fillStyle = _tc.collectFill || '#f5c842';
+      ctx.beginPath(); ctx.roundRect(-10,-10,20,20,3); ctx.fill();
+      ctx.fillStyle = _tc.collectDark || '#c9960a';
+      ctx.beginPath(); ctx.roundRect(-7,-7,14,14,2); ctx.fill();
+      ctx.fillStyle = _tc.collectAccent || '#ffe066';
+      ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBee(x, y, angle, frame) {
+      const TI = window.__TI || {};
+      if (TI.enemy && !window.__activeTheme.useVectorGraphics) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle + Math.sin(frame * 0.25) * 0.15);
+        ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(TI.enemy, 0, 0);
+        ctx.restore();
+        return;
+      }
+      // Decepticon / themed enemy
+      ctx.save(); ctx.translate(x, y); ctx.rotate(angle + Math.sin(frame * 0.25) * 0.15);
+      ctx.fillStyle = _tc.enemyFill || '#9b1c1c';
+      // Body
+      ctx.beginPath(); ctx.moveTo(0,-13); ctx.lineTo(11,-5); ctx.lineTo(8,10); ctx.lineTo(-8,10); ctx.lineTo(-11,-5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = _tc.enemyStripe || '#7f1d1d';
+      ctx.beginPath(); ctx.moveTo(0,-8); ctx.lineTo(6,-2); ctx.lineTo(4,6); ctx.lineTo(-4,6); ctx.lineTo(-6,-2); ctx.closePath(); ctx.fill();
+      // Glowing eye
+      ctx.fillStyle = _tc.enemyWing || 'rgba(255,100,100,0.9)';
+      ctx.beginPath(); ctx.arc(0,0,3.5,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBasket(bx, by, bw, bh) {
+      ctx.fillStyle = _tc.playerBody || '#1e40af';
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 4); ctx.fill();
+      ctx.fillStyle = _tc.playerLight || '#3b82f6';
+      ctx.fillRect(bx, by, bw, 5);
+      ctx.strokeStyle = _tc.playerDark || '#1e3a8a'; ctx.lineWidth = 1;
+      for (let i = 1; i < 5; i++) {
+        ctx.beginPath(); ctx.moveTo(bx + bw * i / 5, by + 5); ctx.lineTo(bx + bw * i / 5, by + bh); ctx.stroke();
+      }
+    }
+
+    function drawBg() {
+      ctx.fillStyle = _tc.bgFill || '#0d1b35';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = _tc.bgStripe || 'rgba(59,130,246,0.06)';
+      for (let i = 0; i < 8; i++) ctx.fillRect(i * (W / 6) - 10, 0, 16, H);
+      ctx.fillStyle = _tc.bgGround || '#1a2d4a';
+      ctx.fillRect(0, H - 22, W, 22);
+      ctx.fillStyle = _tc.bgGroundDark || '#0f1e30';
+      ctx.fillRect(0, H - 10, W, 10);
+      const clouds = [[W * 0.15, 30], [W * 0.55, 20], [W * 0.82, 38]];
+      ctx.fillStyle = _tc.bgCloud || 'rgba(180,210,255,0.18)';
+      clouds.forEach(([cx, cy]) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.arc(cx + 18, cy + 4, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.arc(cx - 14, cy + 5, 12, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+
+    function spawnParticle(x, y, type) {
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 1.5 + Math.random() * 3;
+        particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 1, type });
+      }
+    }
+
+    function gameLoop() {
+      if (!running) return;
+      frameCount++;
+      ctx.clearRect(0, 0, W, H);
+      drawBg();
+
+      const moveSpd = 4.5;
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) basket.x = Math.max(0, basket.x - moveSpd);
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) basket.x = Math.min(W - basket.w, basket.x + moveSpd);
+
+      spawnTimer++;
+      if (spawnTimer >= levelCfg.spawnRate) { spawnItem(); spawnTimer = 0; }
+
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        it.y += it.speed; it.angle += it.spin;
+        if (it.type === 'bamboo') drawCollect(it.x, it.y, it.angle);
+        else drawBee(it.x, it.y, it.angle, frameCount);
+
+        const hit = it.x > basket.x - 14 && it.x < basket.x + basket.w + 14
+          && it.y + 22 > basket.y && it.y - 22 < basket.y + basket.h;
+        if (hit) {
+          spawnParticle(it.x, it.y, it.type);
+          if (it.type === 'bamboo') {
+            gameScore++;
+            document.getElementById('hud-score').textContent = gameScore;
+          } else {
+            gameLives--;
+            document.getElementById('hud-lives').textContent = (window.__TI&&window.__TI.life||'❤️').repeat(Math.max(0, gameLives));
+            if (gameLives <= 0) { items.splice(i, 1); endLevel(false); return; }
+          }
+          items.splice(i, 1); continue;
+        }
+        if (it.y > H + 30) items.splice(i, 1);
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.045;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.type === 'bamboo' ? (_tc.collectFill||'#f5c842') : (_tc.enemyFill||'#9b1c1c');
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      drawBasket(basket.x, basket.y, basket.w, basket.h);
+      drawPlayer(basket.x + basket.w / 2, basket.y - 18, 0.9);
+
+      raf = requestAnimationFrame(gameLoop);
+    }
+
+    function endLevel() {
+      running = false;
+      clearInterval(countdownTimer);
+      if (raf) cancelAnimationFrame(raf);
+      const success = gameScore >= levelCfg.target;
+
+      if (success) {
+        const stars = gameScore >= levelCfg.target * 1.5 ? 3 : gameScore >= levelCfg.target * 1.2 ? 2 : 1;
+        const prev = currentPlayer.levelStars[currentLevel] || 0;
+        if (stars > prev) currentPlayer.levelStars[currentLevel] = stars;
+        const prevBest = currentPlayer.levelBest[currentLevel] || 0;
+        if (gameScore > prevBest) currentPlayer.levelBest[currentLevel] = gameScore;
+        if (currentLevel >= (currentPlayer.maxLevel || 1)) currentPlayer.maxLevel = Math.min(10, currentLevel + 1);
+        savePlayerProgress();
+        addHighScore(gameScore);
+        showLevelComplete(stars);
+      } else {
+        document.getElementById('go-score').textContent = gameScore;
+        document.getElementById('go-target').textContent = levelCfg.target;
+        document.getElementById('go-sub').textContent = 'You needed ' + levelCfg.target + ' ' + COLLECT_ICON + '. You got ' + gameScore + '!';
+        document.getElementById('overlay-gameover').classList.add('active');
+      }
+    }
+
+    function showLevelComplete(stars) {
+      writeLauncherProgress(stars);
+      if (currentLevel === 10 && (birthdayMsg || giftClue)) {
+        showBirthdayCelebration(stars, () => showLevelCompleteOverlay(stars));
+        return;
+      }
+      showLevelCompleteOverlay(stars);
+    }
+    function showLevelCompleteOverlay(stars) {
+      const icon = (window.__TI && window.__TI.collect) || '🧺';
+      const mascot = (window.__T && window.__T.mascot) || '🏆';
+      const msgs = [
+        '',
+        'Good catching! ' + icon,
+        'Expert level skills! 🏆',
+        'Unstoppable ' + mascot + '! ⭐'
+      ];
+      const isLast = currentLevel === 10;
+      document.getElementById('ov-panda').textContent = stars === 3 ? '🏆' : ((window.__TI && window.__TI.player) || '🤖');
+      document.getElementById('ov-title').textContent = isLast ? (window.__TS.completionPrefix || 'ALL Missions Complete! ⚡') : ('Level ' + currentLevel + ' complete!');
+      document.getElementById('ov-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+      document.getElementById('ov-sub').textContent = msgs[stars] || 'Great job!';
+      document.getElementById('ov-score').textContent = gameScore;
+      document.getElementById('ov-best').textContent = currentPlayer.levelBest[currentLevel] || gameScore;
+      const nextBtn = document.getElementById('ov-btn-next');
+      if (isLast) { nextBtn.textContent = '🏠 Back to Launcher'; nextBtn.onclick = () => { closeOverlays(); goToLauncher(); }; }
+      else { nextBtn.textContent = 'Next Level →'; nextBtn.onclick = nextLevel; }
+      document.getElementById('overlay-levelcomplete').classList.add('active');
+    }
+
+    function savePlayerProgress() {
+      const idx = appData.players.findIndex(p => p.name === currentPlayer.name);
+      if (idx >= 0) appData.players[idx] = currentPlayer;
+      saveData(appData);
+    }
+
+    function addHighScore(score) {
+      appData.highScores.push({ name: currentPlayer.name, score, level: currentLevel, date: Date.now() });
+      appData.highScores.sort((a, b) => b.score - a.score);
+      if (appData.highScores.length > 50) appData.highScores = appData.highScores.slice(0, 50);
+      saveData(appData);
+    }
+
+    function nextLevel() {
+      closeOverlays();
+      if (currentLevel < 10) startLevel(currentLevel + 1);
+      else showScreen('screen-levels');
+    }
+
+    function retryLevel() { closeOverlays(); startLevel(currentLevel); }
+
+    function closeOverlays() {
+      document.querySelectorAll('.overlay').forEach(o => o.classList.remove('active'));
+    }
+
+    // ═══════════════════════════════ CONFIRM ═══════════════════════════════
+    function openConfirm(title, text, cb) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-text').textContent = text;
+      document.getElementById('overlay-confirm').classList.add('active');
+      document.getElementById('confirm-yes-btn').onclick = () => { closeConfirm(); cb(); };
+    }
+    function closeConfirm() { document.getElementById('overlay-confirm').classList.remove('active'); }
+
+    // ═══════════════════════════════ TOAST ═══════════════════════════════
+    let toastTimer;
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ═══════════════════════════════ INPUT ═══════════════════════════════
+    if (canvas) canvas.addEventListener('mousemove', e => {
+      const r = canvas.getBoundingClientRect();
+      const scale = W / r.width;
+      basket.x = Math.max(0, Math.min(W - basket.w, (e.clientX - r.left) * scale - basket.w / 2));
+    });
+
+    document.addEventListener('keydown', e => { keys[e.key] = true; });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+
+    window.addEventListener('resize', () => { if (running) resizeCanvas(); });
+
+    function confirmQuitToLevels() {
+      if (!running || confirm('Back to level select? Current level progress will be lost.')) {
+        running = false;
+        clearInterval(countdownTimer);
+        if (raf) cancelAnimationFrame(raf);
+        closeOverlays();
+        showScreen('screen-levels');
+      }
+    }
+
+
+    // ── LAUNCHER SHELL ──
+    const _lp = new URLSearchParams(window.location.search);
+    const launcherPlayer = _lp.get('player');
+    const launcherDay = _lp.get('day');
+    const birthdayMsg = _lp.get('birthdayMsg');
+    const giftClue = _lp.get('giftClue');
+    const clueEmoji = _lp.get('clueEmoji') || '🎁';
+    const gameName = _lp.get('gameName') || document.title;
+
+    function goToLauncher() { window.top.location.href = '../launcher/index.html'; }
+
+    function confirmQuitToLauncher() {
+      if (confirm('Quit to Launcher? Current level progress will be lost.')) goToLauncher();
+    }
+
+    function initShell(screenName) {
+      const playerName = launcherPlayer || (currentPlayer ? currentPlayer.name : 'Player');
+      const av = document.getElementById('lb-av');
+      const nm = document.getElementById('lb-name');
+      if (av) av.textContent = playerName[0].toUpperCase();
+      if (nm) nm.textContent = playerName;
+      updateShell(screenName);
+    }
+
+    function updateShell(screenName) {
+      // reserved for future shell updates
+    }
+
+    function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+
+    function writeLauncherProgress(starsEarned) {
+      if (!launcherPlayer || !launcherDay) return;
+      try {
+        const key = 'birthday_adventure_players_v1';
+        const players = JSON.parse(localStorage.getItem(key) || '[]');
+        let p = players.find(x => x.name === launcherPlayer);
+        if (!p) { p = { name: launcherPlayer, stars: 0, streak: 0 }; players.push(p); }
+        localStorage.setItem(key, JSON.stringify(players));
+      } catch (e) { }
+    }
+
+    function showBirthdayCelebration(starsEarned, onDone) {
+      if (!birthdayMsg && !giftClue) { onDone(); return; }
+      const ov = document.getElementById('overlay-birthday');
+      document.getElementById('bday-emoji').textContent = clueEmoji;
+      document.getElementById('bday-msg').textContent = birthdayMsg || 'Amazing job!!';
+      document.getElementById('bday-clue-text').textContent = giftClue || '';
+      document.getElementById('bday-clue-box').style.display = giftClue ? 'block' : 'none';
+      ov.classList.add('active');
+      document.getElementById('bday-done-btn').onclick = () => { ov.classList.remove('active'); onDone(); };
+    }
+
+    // Init
+    if (launcherPlayer) {
+      const existing = appData.players.find(p => p.name === launcherPlayer);
+      if (!existing) { appData.players.push({ name: launcherPlayer, maxLevel: 1, levelStars: {}, levelBest: {} }); saveData(appData); }
+      currentPlayer = appData.players.find(p => p.name === launcherPlayer);
+    }
+    if (!currentPlayer && appData.players.length > 0) {
+      currentPlayer = appData.players[0];
+    }
+    initShell('Level Select');
+    renderLevels();
+  </script>
+
+
+  <div id="overlay-birthday" class="overlay">
+    <div class="overlay-card"
+      style="background:#fff;border-radius:24px;padding:2rem 1.8rem;width:100%;max-width:400px;text-align:center;animation:popIn .3s cubic-bezier(.175,.885,.32,1.275);">
+      <div id="bday-emoji"
+        style="font-size:4rem;margin-bottom:0.5rem;display:block;animation:floatBob 1.5s ease-in-out infinite;">🎁</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.6rem;color:var(--accent-2, #3b82f6);margin-bottom:0.5rem;">Level 10
+        Complete! 🎉</div>
+      <div id="bday-msg" style="font-size:0.95rem;color:var(--muted);line-height:1.5;margin-bottom:1rem;"></div>
+      <div id="bday-clue-box"
+        style="background:var(--surface-2, #1e2d45);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1.2rem;text-align:left;border:2px solid var(--accent-2, #3b82f6);">
+        <div
+          style="font-size:0.72rem;font-weight:700;color:var(--accent-2, #3b82f6);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
+          🗺️ Your Gift Clue</div>
+        <div id="bday-clue-text" style="font-size:0.95rem;color:var(--text, #e8f4ff);font-weight:600;line-height:1.5;"></div>
+      </div>
+      <button id="bday-done-btn"
+        style="width:100%;padding:12px;background:#ffd166;color:var(--text, #e8f4ff);font-family:'Fredoka One',cursive;font-size:1.1rem;border:none;border-radius:14px;cursor:pointer;">Awesome!
+        Mission Report 🤖</button>
+    </div>
+  </div>
+
+
+
+
+  <script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    var gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    var tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag');
+    if (tag) tag.textContent = gameTitle;
+    
+    var catchSub = document.getElementById('levels-sub');
+    if (catchSub) {
+       catchSub.textContent = "Catch " + (TI.collect || "items") + ", dodge " + (TI.enemy || "obstacles") + ", beat the timer!";
+    }
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    window.writeLauncherProgress = function(starsEarned) {
+      if (!launcherPlayer || !launcherDay) return;
+      try {
+        const key = 'birthday_adventure_players_v1';
+        const players = JSON.parse(localStorage.getItem(key) || '[]');
+        let player = players.find(p => p.name === launcherPlayer);
+        if (!player) {
+          player = { name: launcherPlayer, stars: 0, streak: 0 };
+          players.push(player);
+        }
+        localStorage.setItem(key, JSON.stringify(players));
+      } catch (e) { }
+    };
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+  </script>
+
+</body>
+
+</html>

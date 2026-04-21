@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Game</title>
+  <style>
+    @import url('../assets/fonts/fonts.css');
+
+    :root {
+      --game-max-width: min(92vw, 560px);
+      --green-dark: var(--surface, #111827);
+      --green-mid: var(--accent-2, #3b82f6);
+      --green-light: var(--muted, #9bb8d4);
+      --green-pale: var(--surface-2, #1e2d45);
+      --yellow: #ffd166;
+      --orange: #f4845f;
+      --red: #ef233c;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg, #0a0e1a);
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: #222;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: var(--stripe-texture);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; position: relative; z-index: 1; }
+    .screen.active {
+      display: flex; flex-direction: column;
+      align-items: center; min-height: 100vh;
+    }
+
+    /* ── LAUNCHER BAR ── */
+    #launcher-bar {
+      display: flex; background: rgba(0,0,0,0.4);
+      padding: 9px 13px; align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0; position: sticky; top: 0; z-index: 20; width: 100%;
+    }
+    .lb-left { display: flex; align-items: center; gap: 8px; }
+    .lb-av {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-2, #3b82f6); display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 800;
+      color: #fff; flex-shrink: 0;
+    }
+    .lb-name { font-size: 15px; font-weight: 700; color: #fff; }
+    .lb-btn {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.8); font-size: 15px; font-weight: 700;
+      padding: 5px 11px; border-radius: 10px; cursor: pointer;
+      font-family: 'Nunito', sans-serif; white-space: nowrap; transition: background .15s;
+    }
+    .lb-btn:hover { background: rgba(255,255,255,0.2); }
+
+    /* ── DIFFICULTY SELECT ── */
+    #screen-difficulty { padding: 2rem 1rem; gap: 1.2rem; }
+
+    .diff-header { text-align: center; }
+    .game-name-tag {
+      display: inline-block; font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px; color: var(--green-light);
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px; padding: 3px 14px; margin-bottom: 6px;
+    }
+    .diff-header h2 {
+      font-family: 'Fredoka One', cursive; font-size: 2.4rem;
+      color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    }
+    .diff-header p { color: var(--green-light); font-weight: 600; font-size: 0.95rem; margin-top: 4px; }
+
+    .symbol-showcase {
+      display: flex; gap: 7px; justify-content: center;
+      flex-wrap: wrap; max-width: 380px;
+    }
+    .sym-chip {
+      background: rgba(255,255,255,0.1); border-radius: 12px;
+      width: 42px; height: 42px; display: flex; align-items: center;
+      justify-content: center; font-size: 1.4rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      transition: transform .2s;
+      animation: float ease-in-out infinite;
+    }
+    .sym-chip:nth-child(odd) { animation-duration: 2.8s; }
+    .sym-chip:nth-child(even) { animation-duration: 3.2s; animation-delay: .4s; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .diff-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 380px; }
+    .diff-card {
+      background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 20px; padding: 1.1rem 1.4rem;
+      display: flex; align-items: center; gap: 1rem;
+      cursor: pointer; transition: all .2s; width: 100%;
+    }
+    .diff-card:hover { background: rgba(255,255,255,0.15); transform: translateY(-2px); }
+    .diff-card.easy:hover { border-color: var(--green-mid); }
+    .diff-card.medium:hover { border-color: var(--yellow); }
+    .diff-card.hard:hover { border-color: var(--orange); }
+    .diff-icon { font-size: 2rem; }
+    .diff-info { text-align: left; flex: 1; }
+    .diff-name { font-family: 'Fredoka One', cursive; font-size: 1.35rem; color: #fff; }
+    .diff-desc { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin-top: 2px; }
+    .diff-badge {
+      background: rgba(255,255,255,0.1); border-radius: 10px;
+      padding: 6px 12px; text-align: center;
+    }
+    .diff-badge .db-num { font-family: 'Fredoka One', cursive; font-size: 1.3rem; color: var(--yellow); }
+    .diff-badge .db-lab { font-size: 0.62rem; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── GAME SCREEN ── */
+    #screen-game {
+      background: var(--bg, #1a2e1c);
+      padding-bottom: 1.2rem;
+      gap: 0;
+    }
+
+    #game-hud {
+      width: 100%; max-width: var(--game-max-width);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 10px 80px;
+      background: rgba(0,0,0,0.3);
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+      position: relative;
+    }
+    #hud-back-btn {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
+      color: rgba(255,255,255,0.85); font-family: 'Nunito', sans-serif;
+      font-weight: 700; font-size: 0.78rem; padding: 5px 10px;
+      border-radius: 10px; cursor: pointer; white-space: nowrap; transition: background .15s;
+    }
+    #hud-back-btn:hover { background: rgba(255,255,255,0.22); }
+    .hud-item { display: flex; flex-direction: column; align-items: center; }
+    .hud-label { font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; }
+    .hud-value { font-family: 'Fredoka One', cursive; font-size: 1.35rem; color: #fff; }
+
+    /* Progress bar */
+    .progress-wrap { width: 100%; max-width: var(--game-max-width); padding: 6px 12px 2px; }
+    .progress-track { background: rgba(255,255,255,0.1); border-radius: 10px; height: 5px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--green-mid), var(--yellow));
+      border-radius: 10px; transition: width .5s ease;
+    }
+    .progress-label { font-size: 0.65rem; color: rgba(255,255,255,0.4); text-align: right; margin-top: 2px; font-weight: 700; }
+
+    /* ── SUDOKU GRID ── */
+    .sudoku-wrap {
+      width: 100%; max-width: var(--game-max-width);
+      padding: 10px 10px 6px;
+    }
+
+    .sudoku-grid {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      width: 100%;
+      border: 3px solid var(--green-dark);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #e8f5e9;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    }
+
+    .cell {
+      aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(0.9rem, 3.8vw, 1.5rem);
+      cursor: pointer;
+      background: #fff;
+      border: 1px solid var(--surface-2,#1e2d45);
+      transition: background .12s, transform .1s;
+      user-select: none;
+      position: relative;
+      line-height: 1;
+    }
+    .cell:active { transform: scale(0.92); }
+
+    /* 3x3 box thick borders via JS data attrs */
+    .cell.box-right  { border-right: 2.5px solid var(--accent-2,#3b82f6); }
+    .cell.box-bottom { border-bottom: 2.5px solid var(--accent-2,#3b82f6); }
+    .cell.no-left    { border-left: none; }
+    .cell.no-top     { border-top: none; }
+    .cell.no-right   { border-right: none; }
+    .cell.no-bottom  { border-bottom: none; }
+
+    .cell.given {
+      background: #e8f5e9;
+      cursor: default;
+    }
+    .cell.given .csym { opacity: 0.85; }
+
+    .cell.selected { background: #ffd166 !important; }
+    .cell.highlight { background: #f0faf4; }
+    .cell.same-val  { background: #c8f0d8; }
+
+    .cell.error {
+      background: #ffe5e5 !important;
+      animation: shake .3s;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-3px); }
+      75%      { transform: translateX(3px); }
+    }
+
+    .cell.pop {
+      animation: cellPop .35s;
+    }
+    @keyframes cellPop {
+      0%   { transform: scale(1); }
+      45%  { transform: scale(1.22); background: #b7f0c8; }
+      100% { transform: scale(1); }
+    }
+
+    .csym { pointer-events: none; }
+
+    /* ── PALETTE ── */
+    .palette-wrap { width: 100%; max-width: var(--game-max-width); padding: 0 10px; }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .palette-grid.row2 { grid-template-columns: repeat(5, 1fr); }
+
+    .sym-btn {
+      aspect-ratio: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: clamp(1.1rem, 4.5vw, 1.65rem);
+      background: rgba(255,255,255,0.09);
+      border: 2px solid rgba(255,255,255,0.18);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: all .15s;
+      position: relative;
+      color: #fff;
+    }
+    .sym-btn:hover { background: rgba(255,255,255,0.18); transform: scale(1.06); }
+    .sym-btn:active { transform: scale(0.94); }
+    .sym-btn.active {
+      background: var(--yellow); border-color: var(--yellow);
+      transform: scale(1.09);
+      box-shadow: 0 4px 12px rgba(255,209,102,0.4);
+    }
+    .sym-btn.done { opacity: 0.28; pointer-events: none; }
+
+    .sym-remaining {
+      position: absolute; bottom: 2px; right: 4px;
+      font-size: 0.5rem; font-weight: 800;
+      color: rgba(255,255,255,0.5);
+      font-family: 'Nunito', sans-serif;
+      line-height: 1;
+    }
+    .sym-btn.active .sym-remaining { color: rgba(0,0,0,0.35); }
+
+    .util-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 1px;
+      font-size: 1rem; font-weight: 700;
+      padding: 0;
+    }
+    .util-btn span { font-size: 0.55rem; font-weight: 700; opacity: 0.55; font-family: 'Nunito', sans-serif; }
+
+    /* ── OVERLAYS ── */
+    .overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.6); align-items: center;
+      justify-content: center; padding: 1rem;
+    }
+    .overlay.active { display: flex; }
+
+    .overlay-card {
+      background: #fff; border-radius: 24px; padding: 2rem;
+      width: 100%; max-width: var(--game-max-width); text-align: center;
+      box-shadow: 0 16px 64px rgba(0,0,0,0.35);
+      animation: popIn .3s cubic-bezier(.175,.885,.32,1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+
+    .overlay-panda { font-size: 3.5rem; margin-bottom: 0.5rem; }
+    .overlay-title {
+      font-family: 'Fredoka One', cursive; font-size: 2rem;
+      color: var(--green-dark); margin-bottom: 0.3rem;
+    }
+    .overlay-sub { font-size: 0.95rem; color: #666; margin-bottom: 1.2rem; line-height: 1.5; }
+    .stars-display { font-size: 2rem; margin-bottom: 1rem; letter-spacing: 4px; }
+
+    .overlay-stats {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; margin-bottom: 1.4rem;
+    }
+    .stat-box { background: var(--green-pale); border-radius: 12px; padding: 10px; }
+    .stat-box .s-label { font-size: 0.72rem; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box .s-val { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: var(--green-dark); }
+
+    .overlay-btns { display: flex; flex-direction: column; gap: 8px; }
+    .btn-next {
+      background: var(--yellow); color: var(--green-dark);
+      font-family: 'Fredoka One', cursive; font-size: 1.2rem;
+      padding: 12px; border-radius: 14px; border: none; cursor: pointer; transition: background .2s;
+    }
+    .btn-next:hover { background: #f0c030; }
+    .btn-retry {
+      background: var(--green-pale); color: var(--green-dark);
+      font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.95rem;
+      padding: 10px; border-radius: 14px; border: none; cursor: pointer;
+    }
+    .btn-retry:hover { background: var(--green-light); }
+    .btn-menu {
+      background: #f0f0f0; color: #888;
+      font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.9rem;
+      padding: 9px; border-radius: 14px; border: none; cursor: pointer;
+    }
+    .btn-menu:hover { background: #e0e0e0; }
+
+    /* Confirm */
+    .confirm-card {
+      background: #fff; border-radius: 20px; padding: 1.8rem;
+      width: 100%; max-width: 340px; text-align: center;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.3); animation: popIn .25s ease;
+    }
+    .confirm-title { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: var(--text); margin-bottom: 0.6rem; }
+    .confirm-text { font-size: 0.9rem; color: #666; margin-bottom: 1.4rem; line-height: 1.5; }
+    .confirm-btns { display: flex; gap: 10px; }
+    .btn-confirm-yes { flex: 1; padding: 11px; background: var(--red); color: #fff; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-weight: 700; cursor: pointer; }
+    .btn-confirm-yes:hover { background: #d01c30; }
+    .btn-confirm-no  { flex: 1; padding: 11px; background: #f0f0f0; color: #666; border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-weight: 700; cursor: pointer; }
+    .btn-confirm-no:hover { background: #e0e0e0; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.8); color: #fff; padding: 10px 24px;
+      border-radius: 50px; font-weight: 700; font-size: 0.9rem;
+      z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none;
+      font-family: 'Nunito', sans-serif;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Difficulty label pill in game */
+    .diff-pill {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; padding: 2px 9px; border-radius: 20px;
+      background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
+    }
+    .diff-pill.easy   { background: rgba(82,183,136,0.25); color: var(--green-light); }
+    .diff-pill.medium { background: rgba(255,209,102,0.2); color: var(--yellow); }
+    .diff-pill.hard   { background: rgba(244,132,95,0.2); color: var(--orange); }
+
+    @keyframes floatBob {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-8px); }
+    }
+  </style>
+  <!-- ── THEME SYSTEM ── -->
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  /* ── THEME SHORTCUTS ── all game scripts below use these globals:
+     window.__T  = activeTheme object
+     window.__TI = icons   { player, collect, enemy, life, hole }
+     window.__TC = canvas  { bgFill, collectFill, enemyFill, ... }
+     window.__TS = strings { retryBtn, winBtn, resultsBtn, clueTemplate, ... }
+  */
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+
+<!-- ═══════════════ LAUNCHER BAR ═══════════════ -->
+<div id="launcher-bar">
+  <div class="lb-left">
+    <div class="lb-av" id="lb-av">?</div>
+    <div class="lb-name" id="lb-name"></div>
+  </div>
+  <button class="lb-btn" onclick="goToLauncher()">🏠 Launcher</button>
+</div>
+
+<!-- ═══════════════ DIFFICULTY SELECT ═══════════════ -->
+<div id="screen-difficulty" class="screen active">
+  <div class="diff-header">
+    <div class="game-name-tag" id="level-game-tag">Loading...</div>
+    <h2>Choose a Level</h2>
+    <p>Match each symbol once in every row, column & box!</p>
+  </div>
+
+  <div class="symbol-showcase" id="symbol-showcase"></div>
+
+  <div class="diff-cards">
+    <button class="diff-card easy" onclick="startGame('easy')">
+      <div class="diff-icon">⚡</div>
+      <div class="diff-info">
+        <div class="diff-name">Easy</div>
+        <div class="diff-desc">Lots of hints — great for warming up</div>
+      </div>
+      <div class="diff-badge">
+        <div class="db-num">36</div>
+        <div class="db-lab">clues</div>
+      </div>
+    </button>
+
+    <button class="diff-card medium" onclick="startGame('medium')">
+      <div class="diff-icon">🔧</div>
+      <div class="diff-info">
+        <div class="diff-name">Medium</div>
+        <div class="diff-desc">A satisfying logic challenge</div>
+      </div>
+      <div class="diff-badge">
+        <div class="db-num">29</div>
+        <div class="db-lab">clues</div>
+      </div>
+    </button>
+
+    <button class="diff-card hard" onclick="startGame('hard')">
+      <div class="diff-icon">🛡️</div>
+      <div class="diff-info">
+        <div class="diff-name">Hard</div>
+        <div class="diff-desc">Expert Cybertron master mode!</div>
+      </div>
+      <div class="diff-badge">
+        <div class="db-num">23</div>
+        <div class="db-lab">clues</div>
+      </div>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ GAME SCREEN ═══════════════ -->
+<div id="screen-game" class="screen">
+
+  <div id="game-hud" style="position:relative; width:100%; max-width:420px;">
+    <button id="hud-back-btn" onclick="confirmQuit()">← Back</button>
+    <div class="hud-item">
+      <span class="hud-label">Hearts</span>
+      <span class="hud-value" id="hud-lives" style="font-size:1rem; letter-spacing:1px;">❤️❤️❤️</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Time</span>
+      <span class="hud-value" id="hud-time">0:00</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Hints</span>
+      <span class="hud-value" id="hud-hints">3</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">Level</span>
+      <span class="diff-pill" id="hud-diff">Easy</span>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-label" id="progress-label">0 / 45 filled</div>
+  </div>
+
+  <div class="sudoku-wrap">
+    <div class="sudoku-grid" id="sudoku-grid"></div>
+  </div>
+
+  <div class="palette-wrap" id="palette-wrap"></div>
+
+</div>
+
+<!-- ═══════════════ WIN OVERLAY ═══════════════ -->
+<div id="overlay-win" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-panda" id="win-panda">🤖</div>
+    <div class="overlay-title">Puzzle Solved!</div>
+    <div class="stars-display" id="win-stars">⭐⭐⭐</div>
+    <div class="overlay-sub" id="win-sub">Amazing work!</div>
+    <div class="overlay-stats">
+      <div class="stat-box">
+        <div class="s-label">Time</div>
+        <div class="s-val" id="win-time">0:00</div>
+      </div>
+      <div class="stat-box">
+        <div class="s-label">Mistakes</div>
+        <div class="s-val" id="win-mistakes">0</div>
+      </div>
+    </div>
+    <div class="overlay-btns">
+      <button class="btn-next" onclick="newPuzzle()">New Puzzle 🤖</button>
+      <button class="btn-retry" onclick="retrySame()">Play Again</button>
+      <button class="btn-menu" onclick="closeOverlays(); showScreen('screen-difficulty')">📋 Level Select</button>
+      <button class="btn-menu" onclick="closeOverlays(); goToLauncher()">🏠 Back to Launcher</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ FAIL OVERLAY ═══════════════ -->
+<div id="overlay-fail" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-panda">😢</div>
+    <div class="overlay-title">Oh no!</div>
+    <div class="overlay-sub" id="fail-sub">Too many mistakes! Try again!</div>
+    <div class="overlay-btns">
+      <button class="btn-next" onclick="retrySame()">Retry! 🔄</button>
+      <button class="btn-menu" onclick="closeOverlays(); showScreen('screen-difficulty')">📋 Level Select</button>
+      <button class="btn-menu" onclick="closeOverlays(); goToLauncher()">🏠 Back to Launcher</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CONFIRM OVERLAY ═══════════════ -->
+<div id="overlay-confirm" class="overlay">
+  <div class="confirm-card">
+    <div class="confirm-title" id="confirm-title">Are you sure?</div>
+    <div class="confirm-text"  id="confirm-text">This cannot be undone.</div>
+    <div class="confirm-btns">
+      <button class="btn-confirm-no"  onclick="closeConfirm()">Cancel</button>
+      <button class="btn-confirm-yes" id="confirm-yes-btn">Yes, do it</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BIRTHDAY OVERLAY ═══════════════ -->
+<div id="overlay-birthday" class="overlay">
+  <div class="overlay-card" style="max-width:400px;">
+    <div id="bday-emoji" style="font-size:4rem;margin-bottom:0.5rem;display:block;animation:floatBob 1.5s ease-in-out infinite;">🎁</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.6rem;color:var(--accent-2, #3b82f6);margin-bottom:0.5rem;">Puzzle Solved! 🎉</div>
+    <div id="bday-msg" style="font-size:0.95rem;color:var(--muted);line-height:1.5;margin-bottom:1rem;"></div>
+    <div id="bday-clue-box" style="background:var(--surface-2, #1e2d45);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1.2rem;text-align:left;border:2px solid var(--accent-2, #3b82f6);">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--accent-2, #3b82f6);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">🗺️ Your Gift Clue</div>
+      <div id="bday-clue-text" style="font-size:0.95rem;color:var(--text, #e8f4ff);font-weight:600;line-height:1.5;"></div>
+    </div>
+    <button id="bday-done-btn" style="width:100%;padding:12px;background:#ffd166;color:var(--text, #e8f4ff);font-family:'Fredoka One',cursive;font-size:1.1rem;border:none;border-radius:14px;cursor:pointer;">Mission Report! 🤖</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ═══════════════════ SYMBOLS ═══════════════════
+// 9 panda-themed symbols mapped to sudoku values 1-9
+const SYMS = (window.__activeTheme&&window.__activeTheme.patternEmojis) ? [''].concat(window.__activeTheme.patternEmojis) : ['','🤖','🔋','⚡','🚗','💎','📡','🔩','🛸','🌌'];
+//              0    1    2    3    4    5    6    7    8    9
+//  symbols loaded from active theme
+
+// ═══════════════════ URL PARAMS ═══════════════════
+const _p = new URLSearchParams(window.location.search);
+const launcherPlayer = _p.get('player');
+const launcherDay    = _p.get('day');
+const birthdayMsg    = _p.get('birthdayMsg');
+const giftClue       = _p.get('giftClue');
+const clueEmoji      = _p.get('clueEmoji') || '🎁';
+
+// ═══════════════════ SUDOKU ENGINE ═══════════════════
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function isOk(grid, r, c, n) {
+  for (let i = 0; i < 9; i++) {
+    if (grid[r][i] === n || grid[i][c] === n) return false;
+  }
+  const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+  for (let dr = 0; dr < 3; dr++)
+    for (let dc = 0; dc < 3; dc++)
+      if (grid[br+dr][bc+dc] === n) return false;
+  return true;
+}
+
+function fillGrid(g) {
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (g[r][c] === 0) {
+        for (const n of shuffle([1,2,3,4,5,6,7,8,9])) {
+          if (isOk(g, r, c, n)) {
+            g[r][c] = n;
+            if (fillGrid(g)) return true;
+            g[r][c] = 0;
+          }
+        }
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function mkSolution() {
+  const g = Array.from({length:9}, ()=>Array(9).fill(0));
+  fillGrid(g);
+  return g;
+}
+
+function mkPuzzle(difficulty) {
+  const sol = mkSolution();
+  const targets = { easy: 36, medium: 29, hard: 23 };
+  const keep = targets[difficulty] || 36;
+  const remove = 81 - keep;
+
+  const puz = sol.map(r => [...r]);
+  const indices = shuffle([...Array(81)].map((_,i) => i));
+  for (let i = 0; i < remove; i++) {
+    const idx = indices[i];
+    puz[Math.floor(idx/9)][idx%9] = 0;
+  }
+  return { puz, sol };
+}
+
+// ═══════════════════ GAME STATE ═══════════════════
+let gs = null;       // gameState[r][c] = {val, given, user, err}
+let sol = null;      // solution grid
+let savedPuz = null; // original puzzle (for retry)
+let selR = -1, selC = -1;
+let selSym = 0;
+let mistakes = 0;
+let hintsLeft = 3;
+let timerSecs = 0;
+let timerID = null;
+let gameDone = false;
+let difficulty = 'easy';
+
+// ═══════════════════ SCREENS ═══════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function closeOverlays() {
+  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('active'));
+}
+
+// ═══════════════════ START ═══════════════════
+function startGame(diff) {
+  difficulty = diff;
+  const { puz, sol: s } = mkPuzzle(diff);
+  savedPuz = puz.map(r => [...r]);
+  sol = s;
+  initGame(puz);
+}
+
+function retrySame() {
+  closeOverlays();
+  initGame(savedPuz.map(r => [...r]));
+}
+
+function newPuzzle() {
+  closeOverlays();
+  startGame(difficulty);
+}
+
+function initGame(puz) {
+  showScreen('screen-game');
+  mistakes = 0; hintsLeft = 3; timerSecs = 0;
+  gameDone = false; selR = -1; selC = -1; selSym = 0;
+
+  gs = puz.map((row, r) => row.map((v, c) => ({
+    val:   v,
+    given: v !== 0,
+    user:  0,
+    err:   false
+  })));
+
+  clearInterval(timerID);
+  timerID = setInterval(() => { timerSecs++; updateHUD(); }, 1000);
+
+  // HUD diff label
+  const dp = document.getElementById('hud-diff');
+  dp.textContent = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  dp.className = 'diff-pill ' + difficulty;
+
+  renderGrid();
+  renderPalette();
+  updateHUD();
+  updateProgress();
+}
+
+// ═══════════════════ GRID ═══════════════════
+function renderGrid() {
+  const grid = document.getElementById('sudoku-grid');
+  grid.innerHTML = '';
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      // Box border classes
+      if (c === 0) cell.classList.add('no-left');
+      if (r === 0) cell.classList.add('no-top');
+      if (c === 8) cell.classList.add('no-right');
+      if (r === 8) cell.classList.add('no-bottom');
+      if (c === 2 || c === 5) cell.classList.add('box-right');
+      if (r === 2 || r === 5) cell.classList.add('box-bottom');
+
+      const st = gs[r][c];
+      if (st.given) {
+        cell.classList.add('given');
+        const s = document.createElement('span');
+        s.className = 'csym';
+        s.textContent = SYMS[st.val];
+        cell.appendChild(s);
+      }
+
+      cell.addEventListener('click', () => onCellClick(r, c));
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function getCell(r, c) {
+  return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+}
+
+function onCellClick(r, c) {
+  if (gameDone) return;
+  selR = r; selC = c;
+  refreshHighlights();
+
+  const st = gs[r][c];
+  if (!st.given && selSym > 0) {
+    placeSymbol(r, c, selSym);
+  }
+}
+
+function refreshHighlights() {
+  const selVal = (selR >= 0 && selC >= 0)
+    ? (gs[selR][selC].given ? gs[selR][selC].val : gs[selR][selC].user)
+    : 0;
+
+  document.querySelectorAll('.cell').forEach(el => {
+    el.classList.remove('selected','highlight','same-val');
+    const r = +el.dataset.r, c = +el.dataset.c;
+    if (r === selR && c === selC) {
+      el.classList.add('selected');
+    } else if (selR >= 0 && (
+      r === selR || c === selC ||
+      (Math.floor(r/3) === Math.floor(selR/3) && Math.floor(c/3) === Math.floor(selC/3))
+    )) {
+      el.classList.add('highlight');
+    }
+    // Same value highlight
+    if (selVal > 0) {
+      const thisVal = gs[r][c].given ? gs[r][c].val : gs[r][c].user;
+      if (thisVal === selVal && !(r === selR && c === selC)) {
+        el.classList.remove('highlight');
+        el.classList.add('same-val');
+      }
+    }
+  });
+}
+
+function placeSymbol(r, c, sym) {
+  const st = gs[r][c];
+  if (st.given) return;
+
+  if (sym === 0) {
+    st.user = 0; st.err = false;
+    refreshCell(r, c);
+    updateProgress();
+    return;
+  }
+
+  st.user = sym;
+  const correct = (sym === sol[r][c]);
+
+  if (!correct) {
+    st.err = true;
+    mistakes++;
+    refreshCell(r, c);
+    const el = getCell(r, c);
+    if (el) {
+      el.classList.add('error');
+      setTimeout(() => el && el.classList.remove('error'), 600);
+    }
+    updateHUD();
+    showToast('Oops! Wrong move — recalculate! ⚙️');
+    if (mistakes >= 3) {
+      setTimeout(showFail, 700);
+    }
+  } else {
+    st.err = false;
+    refreshCell(r, c);
+    const el = getCell(r, c);
+    if (el) {
+      el.classList.add('pop');
+      setTimeout(() => el && el.classList.remove('pop'), 400);
+    }
+    updateProgress();
+    refreshHighlights();
+    checkWin();
+  }
+}
+
+function refreshCell(r, c) {
+  const el = getCell(r, c);
+  if (!el) return;
+  const st = gs[r][c];
+  el.innerHTML = '';
+  const displayVal = st.given ? st.val : st.user;
+  if (displayVal) {
+    const s = document.createElement('span');
+    s.className = 'csym';
+    s.textContent = SYMS[displayVal];
+    el.appendChild(s);
+  }
+  if (st.err) el.classList.add('error');
+  else el.classList.remove('error');
+}
+
+// ═══════════════════ PALETTE ═══════════════════
+function renderPalette() {
+  const wrap = document.getElementById('palette-wrap');
+  wrap.innerHTML = '';
+
+  // Count remaining of each symbol needed
+  const need = Array(10).fill(0);
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const st = gs[r][c];
+      if (!st.given && st.user === 0) need[sol[r][c]]++;
+    }
+
+  // Row 1: syms 1-5
+  const row1 = document.createElement('div');
+  row1.className = 'palette-grid';
+  for (let i = 1; i <= 5; i++) row1.appendChild(mkSymBtn(i, need[i]));
+  wrap.appendChild(row1);
+
+  // Row 2: syms 6-9 + erase
+  const row2 = document.createElement('div');
+  row2.className = 'palette-grid row2';
+  for (let i = 6; i <= 9; i++) row2.appendChild(mkSymBtn(i, need[i]));
+  row2.appendChild(mkEraseBtn());
+  wrap.appendChild(row2);
+
+  // Row 3: hint + new puzzle
+  const row3 = document.createElement('div');
+  row3.className = 'palette-grid row2';
+  row3.style.gridTemplateColumns = '1fr 1fr';
+  row3.style.marginTop = '4px';
+  row3.appendChild(mkHintBtn());
+  row3.appendChild(mkNewBtn());
+  wrap.appendChild(row3);
+}
+
+function mkSymBtn(i, remaining) {
+  const btn = document.createElement('button');
+  btn.className = 'sym-btn' + (remaining === 0 ? ' done' : '') + (selSym === i ? ' active' : '');
+  btn.dataset.sym = i;
+
+  const face = document.createElement('span');
+  face.textContent = SYMS[i];
+  btn.appendChild(face);
+
+  if (remaining > 0) {
+    const cnt = document.createElement('span');
+    cnt.className = 'sym-remaining';
+    cnt.textContent = remaining;
+    btn.appendChild(cnt);
+  }
+
+  btn.addEventListener('click', () => {
+    selSym = i;
+    document.querySelectorAll('.sym-btn[data-sym]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (selR >= 0 && selC >= 0 && !gs[selR][selC].given) {
+      placeSymbol(selR, selC, i);
+    }
+  });
+  return btn;
+}
+
+function mkEraseBtn() {
+  const btn = document.createElement('button');
+  btn.className = 'sym-btn util-btn';
+  btn.innerHTML = '✕<span>erase</span>';
+  btn.addEventListener('click', () => {
+    selSym = 0;
+    document.querySelectorAll('.sym-btn[data-sym]').forEach(b => b.classList.remove('active'));
+    if (selR >= 0 && selC >= 0 && !gs[selR][selC].given) {
+      placeSymbol(selR, selC, 0);
+    }
+  });
+  return btn;
+}
+
+function mkHintBtn() {
+  const btn = document.createElement('button');
+  btn.id = 'hint-btn';
+  btn.className = 'sym-btn util-btn';
+  btn.style.color = 'rgba(255,255,255,0.75)';
+  btn.innerHTML = `💡<span>${hintsLeft} left</span>`;
+  btn.addEventListener('click', useHint);
+  return btn;
+}
+
+function mkNewBtn() {
+  const btn = document.createElement('button');
+  btn.className = 'sym-btn util-btn';
+  btn.style.color = 'rgba(255,255,255,0.55)';
+  btn.innerHTML = '🔄<span>new</span>';
+  btn.addEventListener('click', () =>
+    openConfirm('New Puzzle?', 'Current progress will be lost.', newPuzzle)
+  );
+  return btn;
+}
+
+// ═══════════════════ HINT ═══════════════════
+function useHint() {
+  if (hintsLeft <= 0) { showToast('No hints left! ' + ((window.__activeTheme&&window.__activeTheme.mascot)||'🤖')); return; }
+  if (selR < 0) { showToast('Select a cell first!'); return; }
+  const st = gs[selR][selC];
+  if (st.given || st.user === sol[selR][selC]) {
+    showToast('Select an empty cell!'); return;
+  }
+  hintsLeft--;
+  st.user = sol[selR][selC];
+  st.err = false;
+  refreshCell(selR, selC);
+  const el = getCell(selR, selC);
+  if (el) { el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 400); }
+  updateHUD();
+  updateProgress();
+  renderPalette();
+  refreshHighlights();
+  showToast(`Hint used! ${hintsLeft} remaining 💡`);
+  checkWin();
+}
+
+// ═══════════════════ WIN / FAIL ═══════════════════
+function checkWin() {
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const st = gs[r][c];
+      if ((st.given ? st.val : st.user) !== sol[r][c]) return;
+    }
+
+  gameDone = true;
+  clearInterval(timerID);
+
+  const stars = mistakes === 0 ? 3 : mistakes <= 1 ? 2 : 1;
+  const timeStr = fmtTime(timerSecs);
+
+  writeLauncherProgress(stars);
+
+  if (birthdayMsg || giftClue) {
+    showBirthdayCelebration(stars, timeStr);
+    return;
+  }
+  showWin(stars, timeStr);
+}
+
+function showWin(stars, timeStr) {
+  const msgs = ['', 'Keep computing, Autobot! ⚙️', 'Logic circuits are firing! 🤖', 'Flawless — Cybertron salutes you! 🌟'];
+  const _tsdk=window.__activeTheme||{}; document.getElementById('win-panda').textContent=stars===3?'⚡':((_tsdk.icons&&_tsdk.icons.player)||'🤖');
+  document.getElementById('win-stars').textContent = '★'.repeat(stars) + '☆'.repeat(3-stars);
+  document.getElementById('win-sub').textContent = msgs[stars];
+  document.getElementById('win-time').textContent = timeStr;
+    document.getElementById('lb-av').textContent=(currentPlayer.name[0]||'P').toUpperCase();
+    document.getElementById('lb-name').textContent=currentPlayer.name;
+
+    // Resolve difficulty names from theme
+    const t = window.__activeTheme || {};
+    const sl = t.sudokuLevels || { easy:'Easy', medium:'Medium', hard:'Hard' };
+    document.querySelector('.diff-card.easy .diff-name').textContent = sl.easy || 'Easy';
+    document.querySelector('.diff-card.medium .diff-name').textContent = sl.medium || 'Medium';
+    document.querySelector('.diff-card.hard .diff-name').textContent = sl.hard || 'Hard';
+    
+    // Update hud pill too
+    const diffPill = document.getElementById('hud-diff');
+    if (diffPill) {
+       const curD = document.body.dataset.difficulty || 'easy';
+       diffPill.textContent = sl[curD] || curD;
+    }
+  document.getElementById('win-mistakes').textContent = mistakes;
+  document.getElementById('overlay-win').classList.add('active');
+}
+
+function showFail() {
+  gameDone = true;
+  clearInterval(timerID);
+  document.getElementById('overlay-fail').classList.add('active');
+}
+
+// ═══════════════════ HUD ═══════════════════
+function updateHUD() {
+  const lives = Math.max(0, 3 - mistakes);
+  document.getElementById('hud-lives').textContent =
+    (window.__TI&&window.__TI.life||'❤️').repeat(lives) + '🖤'.repeat(3 - lives);
+  document.getElementById('hud-time').textContent = fmtTime(timerSecs);
+  document.getElementById('hud-hints').textContent = hintsLeft;
+  const hb = document.getElementById('hint-btn');
+  if (hb) hb.innerHTML = `💡<span>${hintsLeft} left</span>`;
+}
+
+function fmtTime(s) {
+  return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+}
+
+function updateProgress() {
+  let filled = 0, total = 0;
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const st = gs[r][c];
+      if (!st.given) {
+        total++;
+        if (st.user && !st.err) filled++;
+      }
+    }
+  const pct = total > 0 ? (filled / total) * 100 : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${filled} / ${total} filled`;
+}
+
+// ═══════════════════ CONFIRM ═══════════════════
+function openConfirm(title, text, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-text').textContent  = text;
+  document.getElementById('overlay-confirm').classList.add('active');
+  document.getElementById('confirm-yes-btn').onclick = () => { closeConfirm(); cb(); };
+}
+function closeConfirm() {
+  document.getElementById('overlay-confirm').classList.remove('active');
+}
+
+function confirmQuit() {
+  openConfirm('Back to Menu?', 'Your current puzzle progress will be lost.', () => {
+    clearInterval(timerID);
+    closeOverlays();
+    showScreen('screen-difficulty');
+  });
+}
+
+// ═══════════════════ KEYBOARD ═══════════════════
+document.addEventListener('keydown', e => {
+  if (gameDone) return;
+  if (e.key >= '1' && e.key <= '9') {
+    const sym = parseInt(e.key);
+    selSym = sym;
+    document.querySelectorAll('.sym-btn[data-sym]').forEach(b => {
+      b.classList.toggle('active', +b.dataset.sym === sym);
+    });
+    if (selR >= 0 && selC >= 0 && !gs[selR][selC].given) {
+      placeSymbol(selR, selC, sym);
+    }
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    selSym = 0;
+    document.querySelectorAll('.sym-btn[data-sym]').forEach(b => b.classList.remove('active'));
+    if (selR >= 0 && selC >= 0 && !gs[selR][selC].given) {
+      placeSymbol(selR, selC, 0);
+    }
+  }
+  // Arrow key navigation
+  const moves = { ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1] };
+  if (moves[e.key] && selR >= 0) {
+    e.preventDefault();
+    const [dr, dc] = moves[e.key];
+    selR = Math.max(0, Math.min(8, selR + dr));
+    selC = Math.max(0, Math.min(8, selC + dc));
+    refreshHighlights();
+  }
+});
+
+// ═══════════════════ TOAST ═══════════════════
+let toastTmr;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ═══════════════════ LAUNCHER SHELL ═══════════════════
+function goToLauncher() {
+  const fromGames = window.location.pathname.includes('/games/');
+  window.top.location.href = '../launcher/index.html';
+}
+
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+
+function writeLauncherProgress(starsEarned) {
+  if (!launcherPlayer || !launcherDay) return;
+  try {
+    const key = 'birthday_adventure_players_v1';
+    const players = JSON.parse(localStorage.getItem(key) || '[]');
+    let player = players.find(p => p.name === launcherPlayer);
+    if (!player) {
+      player = { name: launcherPlayer, stars: 0, streak: 0 };
+      players.push(player);
+    }
+    localStorage.setItem(key, JSON.stringify(players));
+  } catch (e) { }
+}
+
+function showBirthdayCelebration(stars, timeStr) {
+  const ov = document.getElementById('overlay-birthday');
+  document.getElementById('bday-emoji').textContent = clueEmoji;
+  document.getElementById('bday-msg').textContent = birthdayMsg || 'You solved the Sudoku! 🎉';
+  document.getElementById('bday-clue-text').textContent = giftClue || '';
+  document.getElementById('bday-clue-box').style.display = giftClue ? 'block' : 'none';
+  ov.classList.add('active');
+  document.getElementById('bday-done-btn').onclick = () => {
+    ov.classList.remove('active');
+    showWin(stars, timeStr);
+  };
+}
+
+// ═══════════════════ SYMBOL SHOWCASE ═══════════════════
+(function initShowcase() {
+  const el = document.getElementById('symbol-showcase');
+  if (!el) return;
+  for (let i = 1; i <= 9; i++) {
+    const chip = document.createElement('div');
+    chip.className = 'sym-chip';
+    chip.textContent = SYMS[i];
+    el.appendChild(chip);
+  }
+})();
+
+// ═══════════════════ SHELL INIT ═══════════════════
+(function initShell() {
+  const name = launcherPlayer || 'Player';
+  const av = document.getElementById('lb-av');
+  const nm = document.getElementById('lb-name');
+  if (av) av.textContent = name[0].toUpperCase();
+  if (nm) nm.textContent = name;
+})();
+</script>
+
+<script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    const gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    const tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag');
+    if (tag) tag.textContent = gameTitle;
+    var failSub = document.getElementById('fail-sub');
+    if (failSub) {
+      failSub.textContent = "Too many mistakes! Take a breath and try again! " + mascot;
+    }
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+
+    /* ── SUDOKU SPECIFIC THEME SYNC ── */
+    var sl = t.sudokuLevels || { easy:'Easy', medium:'Medium', hard:'Hard' };
+    var easyBtn = document.querySelector('.diff-card.easy .diff-name');
+    if (easyBtn) easyBtn.textContent = sl.easy || 'Easy';
+    var medBtn = document.querySelector('.diff-card.medium .diff-name');
+    if (medBtn) medBtn.textContent = sl.medium || 'Medium';
+    var hardBtn = document.querySelector('.diff-card.hard .diff-name');
+    if (hardBtn) hardBtn.textContent = sl.hard || 'Hard';
+
+    var hardDesc = document.querySelector('.diff-card.hard .diff-desc');
+    if (hardDesc) {
+      if (sl.hard === 'Blizzard') hardDesc.textContent = 'Expert arctic master mode!';
+      else if (sl.hard === 'Skibidi') hardDesc.textContent = 'Ultimate brainrot max mode!';
+    }
+  })();
+</script>
+
+</body>
+</html>

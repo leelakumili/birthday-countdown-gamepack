@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Birthday Game</title>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script src="../config/app-config.js"></script>
+  <script src="../engine/panda-adventure.js"></script>
+  <script src="../engine/theme-manager.js"></script>
+  <script>
+    (function () {
+      var cfg = window.APP_CONFIG || null;
+      if (window.PandaAdventure && window.PandaAdventure.Theme) {
+        window.__activeTheme = window.PandaAdventure.Theme.applyFromConfig(cfg);
+      }
+    })();
+  </script>
+  <script>
+  (function(){
+    var t = window.__activeTheme || {};
+    window.__T  = t;
+    window.__TI = t.icons   || {};
+    window.__TC = t.canvas  || {};
+    window.__TS = t.strings || {};
+  })();
+  </script>
+</head>
+<body>
+  <main id="game-root" class="pa-page">
+    <section class="pa-card">
+      <h1 id="game-main-title">Loading...</h1>
+      <p>Stage 1: Choose your path → Stage 2: Crack the code → Stage 3: Turbo tap to victory!</p>
+      <div id="stageBox" class="pa-card" style="margin-top: 10px; background:var(--surface-2);"></div>
+    </section>
+  </main>
+
+  <script src="../engine/sounds.js"></script>
+  <script src="../engine/state-manager.js"></script>
+  <script src="../engine/game-bridge.js"></script>
+  <script src="shared/game-shell.js"></script>
+  <script>
+    var score = 0, level = 1, lives = 3, timer = 240;
+    var stage = 1;
+
+    function completeGame(score, level) {
+      PandaAdventure.Bridge.sendComplete({
+        gameId: "day10",
+        score: score,
+        level: level
+      });
+    }
+
+    PandaAdventure.GameShell.mountTopBar({ rootId: "game-root" });
+    PandaAdventure.GameShell.setStats({ score: score, level: level, lives: lives, timer: timer });
+
+    function setStage(contentHtml) {
+      document.getElementById("stageBox").innerHTML = contentHtml;
+    }
+
+    function stage1() {
+      var TI = window.__TI || {};
+      var mascot = window.__T.mascot || "🐼";
+      var q = (window.__T && window.__T.quest) || {};
+      var tName = q.stage1Title  || "The Journey Begins";
+      var pathA = q.stage1PathA  || ("Safe Path " + (TI.life || "⚡"));
+      var pathB = q.stage1PathB  || ("Shortcut " + (TI.hole || "⚙️"));
+
+      setStage(
+        "<h2>" + (TI.player||mascot) + " Stage 1: " + tName + "</h2><p>Your guide needs your help! Pick the right route to the finish:</p>" +
+        "<div style='display:flex; gap:8px;'><button class='pa-btn pa-btn-primary' id='pathA'>" + pathA + "</button><button class='pa-btn pa-btn-primary' id='pathB'>" + pathB + "</button></div>" +
+        "<p id='stageMsg'></p>"
+      );
+      document.getElementById("pathA").onclick = function () {
+        score += 20; level = 2; stage = 2; PandaAdventure.GameShell.setStats({ score: score, level: level }); stage2();
+      };
+      document.getElementById("pathB").onclick = function () {
+        var trapMsg = q.stage1Trap || (mascot + " found a prickly bush! Try the other path!");
+        lives -= 1; PandaAdventure.GameShell.setStats({ lives: lives }); document.getElementById("stageMsg").textContent = trapMsg;
+      };
+    }
+
+    function stage2() {
+      var TI = window.__TI || {};
+      var q = (window.__T && window.__T.quest) || {};
+      var s2Name = q.stage2Title || "Logic Gate";
+      setStage(
+        "<h2>" + (TI.collect||"🔐") + " Stage 2: " + s2Name + "</h2><p>Crack the sequence to unlock the gate: 2, 4, 8, 16, ?</p>" +
+        "<input id='patternInput' style='padding:8px; width:100%; max-width:220px;' placeholder='Enter code...'/>" +
+        "<button class='pa-btn pa-btn-secondary' id='patternBtn' style='margin-left:8px;'>Submit</button>" +
+        "<p id='stageMsg'></p>"
+      );
+      document.getElementById("patternBtn").onclick = function () {
+        var value = (document.getElementById("patternInput").value || "").trim();
+        if (value === "32") {
+          score += 30; level = 3; stage = 3; PandaAdventure.GameShell.setStats({ score: score, level: level }); stage3();
+        } else {
+          lives -= 1;
+          PandaAdventure.GameShell.setStats({ lives: lives });
+          document.getElementById("stageMsg").textContent = "Try again! Hint: multiply by 2 each time ✨";
+        }
+      };
+    }
+
+    function stage3() {
+      var TI = window.__TI || {};
+      var q = (window.__T && window.__T.quest) || {};
+      var s3Name  = q.stage3Title   || "Mascot Celebration";
+      var btnText = q.stage3BtnText || ((TI.player||"🐼") + " DANCE! ✨");
+      setStage(
+        "<h2>" + (TI.life||"⚡") + " Stage 3: " + s3Name + "</h2><p>Turbo-tap 15 times to win!</p>" +
+        "<button class='pa-btn pa-btn-primary' id='tapBtn'>" + btnText + "</button> <strong id='tapCount'>0/15</strong>"
+      );
+      var taps = 0;
+      document.getElementById("tapBtn").onclick = function () {
+        taps += 1;
+        score += 2;
+        document.getElementById("tapCount").textContent = taps + "/15";
+        PandaAdventure.GameShell.setStats({ score: score });
+        if (taps >= 15) {
+          finish();
+        }
+      };
+    }
+
+    function launchConfetti() {
+      var canvas = document.createElement('canvas');
+      canvas.id = 'confettiCanvas';
+      canvas.style.position = 'fixed';
+      canvas.style.top = '0';
+      canvas.style.left = '0';
+      canvas.style.width = '100vw';
+      canvas.style.height = '100vh';
+      canvas.style.zIndex = '999';
+      canvas.style.pointerEvents = 'none';
+      document.body.appendChild(canvas);
+
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      var ctx = canvas.getContext('2d');
+      var colors = (window.__T && window.__T.confettiColors) || ['#ff4d4d','#ffd166','#06d6a0','#118ab2','#ff6b6b','#a8edea','#fed9b7','#f07167'];
+      var particles = [];
+
+      for (var i = 0; i < 150; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height - canvas.height,
+          vx: (Math.random() - 0.5) * 3,
+          vy: Math.random() * 3 + 2,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          w: 6,
+          h: 10
+        });
+      }
+
+      var start = Date.now();
+      var duration = 4000;
+
+      function drawFrame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < particles.length; i++) {
+          var p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.05; // gravity
+          p.rotation += p.rotSpeed;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          ctx.restore();
+        }
+
+        if (Date.now() - start < duration) {
+          requestAnimationFrame(drawFrame);
+        } else {
+          if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+        }
+      }
+
+      requestAnimationFrame(drawFrame);
+    }
+
+    function finish() {
+      level = 4;
+      var mascot = window.__T.mascot || "🐼";
+      var q = (window.__T && window.__T.quest) || {};
+      var happyText = q.finishText || "🎂 Happy Birthday! 🎈";
+      PandaAdventure.GameShell.setStats({ level: level });
+      setStage("<h2>🎉 MISSION COMPLETE! 🎂</h2><p style='font-size:1.1rem;'>You completed the FULL Birthday Quest!</p><p style='font-size:1.05rem;'>Your guide says: <strong>\"With the power of your brain and a heart of a hero, you are absolutely amazing!\"</strong></p><p style='font-size:1.2rem; margin-top:12px;'>" + happyText + "</p>");
+      if (window.PandaAdventure && window.PandaAdventure.Sounds) {
+        window.PandaAdventure.Sounds.playBirthdayJingle();
+      }
+      launchConfetti();
+      completeGame(score, level);
+    }
+
+    setInterval(function () {
+      timer -= 1;
+      PandaAdventure.GameShell.setStats({ timer: timer });
+      if (timer <= 0 && stage < 4) {
+        setStage("<h2>⏱️ Time's up!</h2><p>The timer was fast this time. Refresh and try again — your guide believes in you! 🤖</p>");
+      }
+    }, 1000);
+
+    stage1();
+  </script>
+
+  <script>
+  /* ── THEME SYNC: runs after DOM is ready ─────────────────────────────────── */
+  (function() {
+    var t   = window.__T  || window.__activeTheme || {};
+    var TI  = window.__TI || t.icons   || {};
+    var TS  = window.__TS || t.strings || {};
+    var Th  = window.PandaAdventure && window.PandaAdventure.Theme;
+    var mascot = t.mascot || '🎮';
+
+    /* game name badge + page title */
+    var params = new URLSearchParams(window.location.search);
+    var dayId  = params.get('dayId');
+    if (!dayId && window.APP_CONFIG && window.APP_CONFIG.days) {
+      var path = window.location.pathname;
+      for (var i=0; i<window.APP_CONFIG.days.length; i++) {
+        if (path.indexOf(window.APP_CONFIG.days[i].file.replace('../games/','')) !== -1) {
+          dayId = window.APP_CONFIG.days[i].id; break;
+        }
+      }
+    }
+    const gameTitle = (dayId && Th) ? Th.getGameTitle(t, dayId, document.title) : (t.name || document.title);
+    document.title = gameTitle;
+    const tag = document.getElementById('level-game-tag') || document.querySelector('.game-name-tag') || document.getElementById('game-main-title');
+    if (tag) tag.textContent = gameTitle;
+
+    /* mascot / win overlay */
+    ['ov-panda','win-panda','ov-emoji','level-mascot'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.textContent = mascot;
+    });
+
+    /* lives HUD */
+    var livesEl = document.getElementById('hud-lives') || document.getElementById('lives');
+    if (livesEl) livesEl.textContent = (TI.life||'❤️').repeat(
+      parseInt(livesEl.dataset.lives || livesEl.textContent.replace(/[^❤️⚡🔥❄️]/g,'').length || '3', 10) || 3
+    );
+
+    /* retry / next / results buttons via data-btn attribute */
+    document.querySelectorAll('[data-btn="retry"]').forEach(function(el){
+      el.textContent = TS.retryBtn || 'Retry! 🔄';
+    });
+    document.querySelectorAll('[data-btn="next"]').forEach(function(el){
+      el.textContent = TS.winBtn || 'Next →';
+    });
+    document.querySelectorAll('[data-btn="results"]').forEach(function(el){
+      el.textContent = TS.resultsBtn || 'See results';
+    });
+
+    /* clue-box: style with theme accent colors */
+    var clueBox = document.getElementById('bday-clue-box');
+    if (clueBox) {
+      clueBox.style.background = 'var(--surface-2)';
+      clueBox.style.borderColor = 'var(--accent-2)';
+    }
+    var bdayMsg = document.getElementById('bday-msg');
+    if (bdayMsg) bdayMsg.style.color = 'var(--muted)';
+
+    /* completion prefix from theme strings */
+    var winPrefix = document.getElementById('win-prefix');
+    if (winPrefix) winPrefix.textContent = TS.completionPrefix || '';
+  })();
+  </script>
+
+</body>
+</html>
