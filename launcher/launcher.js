@@ -291,6 +291,7 @@
     var joiner = filePath.indexOf("?") === -1 ? "?" : "&";
     var url = filePath + joiner + "theme=" + encodeURIComponent(selectedThemeName);
     if (day.id) url += "&dayId=" + encodeURIComponent(day.id);
+    if (selectedPlayerName) url += "&player=" + encodeURIComponent(selectedPlayerName);
     return url;
   }
 
