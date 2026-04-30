@@ -268,7 +268,8 @@
     var birthday = getBirthdayUTC();
     var diffMs = Math.max(0, birthday - now);
 
-    var days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    var todayMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    var days = Math.max(0, Math.floor((birthday.getTime() - todayMidnight.getTime()) / msPerDay));
     diffMs -= days * 24 * 60 * 60 * 1000;
     var hours = Math.floor(diffMs / (60 * 60 * 1000));
     diffMs -= hours * 60 * 60 * 1000;
