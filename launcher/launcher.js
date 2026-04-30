@@ -263,22 +263,24 @@
     playerModalEl.classList.remove("open");
   }
 
+  var msPerDay = 24 * 60 * 60 * 1000;
+
   function renderCountdown() {
     var now = getNowUTC();
     var birthday = getBirthdayUTC();
-    var diffMs = Math.max(0, birthday - now);
 
-    var todayMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    var days = Math.max(0, Math.floor((birthday.getTime() - todayMidnight.getTime()) / msPerDay));
-    diffMs -= days * 24 * 60 * 60 * 1000;
-    var hours = Math.floor(diffMs / (60 * 60 * 1000));
-    diffMs -= hours * 60 * 60 * 1000;
-    var mins = Math.floor(diffMs / (60 * 1000));
-    diffMs -= mins * 60 * 1000;
-    var secs = Math.floor(diffMs / 1000);
+    // Derive all units from the same total so nothing can go negative.
+    var totalMs = Math.max(0, birthday.getTime() - now.getTime());
+    var days  = Math.floor(totalMs / msPerDay);
+    var rem   = totalMs - days * msPerDay;
+    var hours = Math.floor(rem / (60 * 60 * 1000));
+    rem -= hours * 60 * 60 * 1000;
+    var mins  = Math.floor(rem / (60 * 1000));
+    rem -= mins * 60 * 1000;
+    var secs  = Math.floor(rem / 1000);
 
-    document.getElementById("cdDays").textContent = String(days).padStart(2, "0");
-    document.getElementById("cdHours").textContent = String(hours).padStart(2, "0");
+    document.getElementById("cdDays").textContent    = String(days).padStart(2, "0");
+    document.getElementById("cdHours").textContent   = String(hours).padStart(2, "0");
     document.getElementById("cdMinutes").textContent = String(mins).padStart(2, "0");
     document.getElementById("cdSeconds").textContent = String(secs).padStart(2, "0");
   }
