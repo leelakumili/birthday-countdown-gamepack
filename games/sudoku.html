@@ -31,7 +31,7 @@
     body::before {
       content: '';
       position: fixed;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       background-image: var(--stripe-texture);
       pointer-events: none;
       z-index: 0;
@@ -187,7 +187,7 @@
       background: #fff;
       border: 1px solid var(--surface-2,#1e2d45);
       transition: background .12s, transform .1s;
-      user-select: none;
+      -webkit-user-select: none; user-select: none;
       position: relative;
       line-height: 1;
     }
@@ -283,7 +283,7 @@
 
     /* ── OVERLAYS ── */
     .overlay {
-      display: none; position: fixed; inset: 0; z-index: 100;
+      display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100;
       background: rgba(0,0,0,0.6); align-items: center;
       justify-content: center; padding: 1rem;
     }

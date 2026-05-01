@@ -31,7 +31,7 @@
     body::before {
       content: '';
       position: fixed;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       background-image: var(--stripe-texture);
       pointer-events: none;
       z-index: 0;
@@ -209,15 +209,15 @@
     .card-grid { display: grid; gap: 8px; width: 100%; }
     .memory-card {
       aspect-ratio: 1; border-radius: 14px; cursor: pointer;
-      position: relative; transform-style: preserve-3d;
+      position: relative; -webkit-transform-style: preserve-3d; transform-style: preserve-3d;
       transition: transform .45s cubic-bezier(.175,.885,.32,1.275);
-      user-select: none;
+      -webkit-user-select: none; user-select: none;
     }
     .memory-card.flipped { transform: rotateY(180deg); }
     .memory-card.matched { cursor: default; }
     .memory-card.matched .card-front { border: 3px solid var(--yellow); box-shadow: 0 0 18px rgba(255,209,102,.5); }
     .card-face {
-      position: absolute; inset: 0; border-radius: 12px;
+      position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: 12px;
       backface-visibility: hidden; -webkit-backface-visibility: hidden;
       display: flex; align-items: center; justify-content: center;
     }
@@ -259,7 +259,7 @@
       width: 66px; height: 66px; border-radius: 14px; font-size: 2rem;
       display: flex; align-items: center; justify-content: center;
       background: rgba(255,255,255,0.08); border: 3px solid transparent;
-      transition: all .3s; cursor: default; user-select: none; color: #fff;
+      transition: all .3s; cursor: default; -webkit-user-select: none; user-select: none; color: #fff;
     }
     .pattern-cell.highlight {
       background: rgba(255,209,102,0.25); border-color: var(--yellow);
@@ -277,7 +277,7 @@
 
     /* ══════════════════════════════ OVERLAY ══════════════════════════════ */
     .overlay {
-      display: none; position: fixed; inset: 0; z-index: 100;
+      display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100;
       background: rgba(0,0,0,0.6);
       align-items: center; justify-content: center; padding: 1rem;
     }
