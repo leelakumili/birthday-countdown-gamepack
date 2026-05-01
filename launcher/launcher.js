@@ -291,7 +291,10 @@
     var joiner = filePath.indexOf("?") === -1 ? "?" : "&";
     var url = filePath + joiner + "theme=" + encodeURIComponent(selectedThemeName);
     if (day.id) url += "&dayId=" + encodeURIComponent(day.id);
+    if (day.id) url += "&day=" + encodeURIComponent(day.id);
     if (selectedPlayerName) url += "&player=" + encodeURIComponent(selectedPlayerName);
+    var clue = App.Theme.getGameClue(activeTheme, day.id, day.clue);
+    if (clue) url += "&giftClue=" + encodeURIComponent(clue);
     return url;
   }
 
