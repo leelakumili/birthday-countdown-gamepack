@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Offline — Birthday Adventure Game Pack</title>
-  <link rel="manifest" href="./manifest.json" />
+  <!-- manifest injected via JS to avoid CORS errors on file:// protocol -->
   <meta name="theme-color" content="#ff69b4" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <style>
@@ -63,6 +63,12 @@
   <a href="./launcher/index.html" class="btn">Try Again</a>
   <p class="note">Once you've visited online, all games work offline automatically!</p>
   <script>
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = './manifest.json';
+      document.head.appendChild(link);
+    }
     // Auto-retry when connection is restored
     window.addEventListener('online', function () {
       window.location.replace('./launcher/index.html');

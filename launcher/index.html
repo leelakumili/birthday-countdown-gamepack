@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Birthday Adventure Game Pack</title>
 
-  <!-- PWA manifest -->
-  <link rel="manifest" href="../manifest.json" />
+  <!-- PWA manifest (injected via JS to avoid CORS errors on file:// protocol) -->
 
   <!-- Theme color -->
   <meta name="theme-color" content="#ff69b4" />
@@ -22,9 +21,17 @@
 
   <!-- Register service worker from launcher (start_url target) -->
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('../sw.js', { scope: '../' })
-        .catch(function (err) { console.warn('[SW] Registration failed:', err); });
+    // PWA features require a secure HTTP context; skip silently on file://
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = '../manifest.json';
+      document.head.appendChild(link);
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('../sw.js', { scope: '../' })
+          .catch(function (err) { console.warn('[SW] Registration failed:', err); });
+      }
     }
     // Capture install prompt for the custom install button
     window.__pwaInstallPrompt = null;
