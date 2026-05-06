@@ -463,7 +463,7 @@ function showComplete() {
   saveData(appData);
   writeLauncherProgress(stars);
   const msgs = (window.__T && window.__T.paintMessages) ||
-               [‘’, ‘Good start! 🎨’, ‘You\’re very creative! ✨’, ‘A true masterpiece! 🏆’];
+               ['', 'Good start! 🎨', "You're very creative! ✨", 'A true masterpiece! 🏆'];
   const _tbnt=window.__activeTheme||{}; document.getElementById('ov-panda').textContent=stars===3?'🏆':((_tbnt.icons&&_tbnt.icons.player)||'🎨');
   document.getElementById('ov-title').textContent=curNum===LEVELS.length?'ALL Masterpieces Complete! 🏆':'Mission Painted!';
   document.getElementById('ov-stars').textContent=starStr;
