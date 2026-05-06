@@ -35,14 +35,14 @@
     .level-header h2 { font-family: 'Fredoka One', cursive; font-size: 2.2rem; color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,0.3); }
     .level-header p { color: var(--green-light); font-weight: 600; font-size: 0.95rem; margin-top: 4px; }
     .level-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; max-width: var(--game-max-width); }
-    .level-btn { aspect-ratio: 1; border-radius: 16px; border: none; cursor: pointer; font-family: 'Fredoka One', cursive; transition: transform .15s, box-shadow .15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; position: relative; overflow: hidden; }
+    .level-btn { aspect-ratio: 1; min-height: 90px; border-radius: 16px; border: none; cursor: pointer; font-family: 'Fredoka One', cursive; transition: transform .15s, box-shadow .15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; position: relative; overflow: hidden; }
     .level-btn .lvl-num   { font-size: 2.2rem; line-height: 1; }
     .level-btn .lvl-name  { font-size: 0.78rem; font-family: 'Nunito', sans-serif; font-weight: 700; opacity: .8; }
     .level-btn .lvl-stars { font-size: 0.75rem; letter-spacing: 1px; min-height: 14px; }
     .level-btn.unlocked   { background: var(--yellow); color: var(--green-dark); box-shadow: 0 4px 0 rgba(0,0,0,0.2); }
     .level-btn.unlocked:hover  { transform: translateY(-3px); box-shadow: 0 7px 0 rgba(0,0,0,0.2); }
     .level-btn.unlocked:active { transform: translateY(1px); }
-    .level-btn.completed  { background: var(--green-mid); color: #fff; box-shadow: 0 4px 0 var(--green-dark); }
+    .level-btn.completed  { background: var(--green-mid); color: #fff; box-shadow: 0 4px 0 var(--green-dark); border: 2px solid rgba(255,255,255,0.2); }
     .level-btn.completed:hover { transform: translateY(-3px); }
     .level-btn.locked     { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; box-shadow: none; }
     .level-btn.locked .lvl-num { opacity: .4; }
@@ -191,6 +191,10 @@
       <div class="stat-box"><div class="s-label">Time</div><div class="s-val" id="ov-time">0:00</div></div>
       <div class="stat-box"><div class="s-label">Hints</div><div class="s-val" id="ov-hints-used">0</div></div>
     </div>
+    <div id="ov-gift-box" style="display:none;background:var(--green-pale,#d8f3dc);border-radius:14px;padding:1rem 1.2rem;margin-bottom:1rem;text-align:left;border:2px solid var(--accent-2,#52b788);">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--accent-2,#52b788);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">🗺️ Your Gift Clue</div>
+      <div id="ov-gift-clue" style="font-size:0.95rem;color:var(--green-dark,#1a3c2a);font-weight:600;line-height:1.5;"></div>
+    </div>
     <div class="overlay-btns">
       <button class="btn-next"  id="ov-btn-next">Next Painting →</button>
       <button class="btn-retry" onclick="retryLevel()">Paint Again 🎨</button>
@@ -217,6 +221,7 @@
 const _p = new URLSearchParams(window.location.search);
 const launcherPlayer = _p.get('player');
 const launcherDay = _p.get('day');
+const giftClue = _p.get('giftClue');
 
 const COLORS = {
   1:{hex:'#0d1b35',name:'Void'}, 2:{hex:'#e8f4ff',name:'Steel'}, 3:{hex:'#1e3a8a',name:'Navy'},
@@ -469,6 +474,13 @@ function showComplete() {
   const nextBtn=document.getElementById('ov-btn-next');
   if(curNum<LEVELS.length){nextBtn.textContent='Next Painting →';nextBtn.onclick=()=>{closeOverlays();startLevel(curNum+1);};}
   else{nextBtn.textContent='📋 Level Select';nextBtn.onclick=()=>{closeOverlays();showScreen('screen-levels');};}
+  const giftBox=document.getElementById('ov-gift-box');
+  if(curNum===LEVELS.length&&giftClue){
+    document.getElementById('ov-gift-clue').textContent=giftClue;
+    if(giftBox) giftBox.style.display='block';
+  } else {
+    if(giftBox) giftBox.style.display='none';
+  }
   document.getElementById('overlay-complete').classList.add('active');
   launchConfetti();
 }
@@ -597,4 +609,3 @@ renderLevels();
 
 </body>
 </html>
-```
